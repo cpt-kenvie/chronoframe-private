@@ -1,6 +1,7 @@
 <script lang="ts" setup>
 import { motion } from 'motion-v'
 import { clusterMarkers, photosToMarkers } from '~/utils/clustering'
+import { transformCoordinate } from '~/utils/coordinate-transform'
 
 useHead({
   title: $t('title.globe'),
@@ -25,9 +26,16 @@ const currentClusterPointId = ref<string | null>(null)
 const mapInstance = ref<any>(null)
 const currentZoom = ref<number>(4)
 
+const mapConfig = computed(() => {
+  const config = getSetting('map')
+  return typeof config === 'object' && config ? config : {}
+})
+
+const provider = computed(() => mapConfig.value.provider || 'maplibre')
+
 // Convert photos to markers and apply clustering
 const clusteredMarkers = computed(() => {
-  const markers = photosToMarkers(photosWithLocation.value)
+  const markers = photosToMarkers(photosWithLocation.value, provider.value)
   return clusterMarkers(markers, currentZoom.value)
 })
 
@@ -55,9 +63,10 @@ watch(currentClusterPointId, (newId) => {
 
 const mapViewState = computed(() => {
   if (photosWithLocation.value.length === 0) {
+    const [lng, lat] = transformCoordinate(-122.4, 37.8, provider.value)
     return {
-      longitude: -122.4,
-      latitude: 37.8,
+      longitude: lng,
+      latitude: lat,
       zoom: 2,
     }
   }
@@ -88,9 +97,11 @@ const mapViewState = computed(() => {
   else if (maxDiff < 50) zoom = 4
   else zoom = 2
 
+  const [lng, lat] = transformCoordinate(centerLng, centerLat, provider.value)
+
   return {
-    longitude: centerLng,
-    latitude: centerLat,
+    longitude: lng,
+    latitude: lat,
     zoom,
   }
 })
@@ -112,16 +123,26 @@ const onMarkerPinClick = (clusterPoint: any) => {
       // Add some padding
       const padding = 0.001
 
-      mapInstance.value.fitBounds(
-        [
+      if (provider.value === 'amap') {
+        // AMap API
+        const bounds = new window.AMap.Bounds(
           [minLng - padding, minLat - padding],
           [maxLng + padding, maxLat + padding],
-        ],
-        {
-          padding: 50,
-          duration: 1000,
-        },
-      )
+        )
+        mapInstance.value.setBounds(bounds, true, [50, 50, 50, 50], 1000)
+      } else {
+        // Mapbox/MapLibre API
+        mapInstance.value.fitBounds(
+          [
+            [minLng - padding, minLat - padding],
+            [maxLng + padding, maxLat + padding],
+          ],
+          {
+            padding: 50,
+            duration: 1000,
+          },
+        )
+      }
     }
     return
   }
@@ -145,13 +166,24 @@ const onMapLoaded = (map: any) => {
   if (photoId && typeof photoId === 'string') {
     const photo = photosWithLocation.value.find((photo) => photo.id === photoId)
     if (photo && photo.latitude && photo.longitude) {
+      const [lng, lat] = transformCoordinate(
+        photo.longitude,
+        photo.latitude,
+        provider.value,
+      )
       setTimeout(() => {
-        map.flyTo({
-          center: [photo.longitude, photo.latitude],
-          zoom: 17,
-          essential: true,
-          duration: 2000,
-        })
+        if (provider.value === 'amap') {
+          // AMap API
+          mapInstance.value.setZoomAndCenter(17, [lng, lat], false, 2000)
+        } else {
+          // Mapbox/MapLibre API
+          map.flyTo({
+            center: [lng, lat],
+            zoom: 17,
+            essential: true,
+            duration: 2000,
+          })
+        }
         setTimeout(() => {
           nextTick(() => {
             currentClusterPointId.value = photoId
@@ -161,7 +193,11 @@ const onMapLoaded = (map: any) => {
     }
   }
 
-  currentZoom.value = map.getZoom()
+  if (provider.value === 'amap') {
+    currentZoom.value = map.getZoom()
+  } else {
+    currentZoom.value = map.getZoom()
+  }
 }
 
 const onMapZoom = useThrottleFn(() => {
@@ -172,12 +208,20 @@ const onMapZoom = useThrottleFn(() => {
 // Map control functions
 const zoomIn = () => {
   if (!mapInstance.value) return
-  mapInstance.value.zoomIn({ duration: 300 })
+  if (provider.value === 'amap') {
+    mapInstance.value.zoomIn()
+  } else {
+    mapInstance.value.zoomIn({ duration: 300 })
+  }
 }
 
 const zoomOut = () => {
   if (!mapInstance.value) return
-  mapInstance.value.zoomOut({ duration: 300 })
+  if (provider.value === 'amap') {
+    mapInstance.value.zoomOut()
+  } else {
+    mapInstance.value.zoomOut({ duration: 300 })
+  }
 }
 
 const resetMap = () => {
@@ -186,12 +230,23 @@ const resetMap = () => {
   currentClusterPointId.value = null
 
   // Reset to initial view state
-  mapInstance.value.flyTo({
-    center: [mapViewState.value.longitude, mapViewState.value.latitude],
-    zoom: mapViewState.value.zoom,
-    essential: true,
-    duration: 1000,
-  })
+  if (provider.value === 'amap') {
+    // AMap API
+    mapInstance.value.setZoomAndCenter(
+      mapViewState.value.zoom,
+      [mapViewState.value.longitude, mapViewState.value.latitude],
+      false,
+      1000,
+    )
+  } else {
+    // Mapbox/MapLibre API
+    mapInstance.value.flyTo({
+      center: [mapViewState.value.longitude, mapViewState.value.latitude],
+      zoom: mapViewState.value.zoom,
+      essential: true,
+      duration: 1000,
+    })
+  }
 }
 
 const generateRandomKey = () => {
@@ -200,7 +255,11 @@ const generateRandomKey = () => {
 
 onBeforeRouteLeave(() => {
   if (mapInstance.value) {
-    mapInstance.value.remove()
+    if (provider.value === 'amap') {
+      mapInstance.value.destroy()
+    } else {
+      mapInstance.value.remove()
+    }
     mapInstance.value = null
   }
 })

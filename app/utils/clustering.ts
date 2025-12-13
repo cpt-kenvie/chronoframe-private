@@ -1,4 +1,5 @@
 import type { PhotoMarker, ClusterPoint } from '~~/shared/types/map'
+import { transformCoordinate } from './coordinate-transform'
 
 /**
  * Simple clustering algorithm for small datasets
@@ -87,7 +88,7 @@ export function clusterMarkers(
   return clusters
 }
 
-export function photosToMarkers(photos: Photo[]): PhotoMarker[] {
+export function photosToMarkers(photos: Photo[], provider = 'maplibre'): PhotoMarker[] {
   return photos
     .filter(
       (photo) =>
@@ -96,15 +97,22 @@ export function photosToMarkers(photos: Photo[]): PhotoMarker[] {
         photo.latitude !== undefined &&
         photo.longitude !== undefined,
     )
-    .map((photo) => ({
-      id: photo.id,
-      latitude: photo.latitude!,
-      longitude: photo.longitude!,
-      title: photo.title || undefined,
-      thumbnailUrl: photo.thumbnailUrl || undefined,
-      thumbnailHash: photo.thumbnailHash || undefined,
-      dateTaken: photo.dateTaken || undefined,
-      city: photo.city || undefined,
-      exif: photo.exif || undefined,
-    }))
+    .map((photo) => {
+      const [lng, lat] = transformCoordinate(
+        photo.longitude!,
+        photo.latitude!,
+        provider,
+      )
+      return {
+        id: photo.id,
+        latitude: lat,
+        longitude: lng,
+        title: photo.title || undefined,
+        thumbnailUrl: photo.thumbnailUrl || undefined,
+        thumbnailHash: photo.thumbnailHash || undefined,
+        dateTaken: photo.dateTaken || undefined,
+        city: photo.city || undefined,
+        exif: photo.exif || undefined,
+      }
+    })
 }

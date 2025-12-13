@@ -147,8 +147,8 @@ export class SettingsManager {
         )
         .get()
 
-      // If not exists and has default value, insert it
       if (!existing) {
+        // If not exists, insert it
         db.insert(tables.settings)
           .values({
             namespace: config.namespace,
@@ -163,6 +163,27 @@ export class SettingsManager {
             isSecret: config.isSecret,
             enum: config.enum ? config.enum : null,
           })
+          .run()
+      } else {
+        // If exists, update metadata fields (enum, label, description, etc.)
+        db.update(tables.settings)
+          .set({
+            type: config.type,
+            defaultValue: this.serialize(config.defaultValue),
+            label: config.label,
+            description: config.description,
+            isPublic: config.isPublic,
+            isReadonly: config.isReadonly,
+            isSecret: config.isSecret,
+            enum: config.enum ? config.enum : null,
+            updatedAt: new Date(),
+          })
+          .where(
+            and(
+              eq(tables.settings.namespace, config.namespace),
+              eq(tables.settings.key, config.key),
+            ),
+          )
           .run()
       }
     }

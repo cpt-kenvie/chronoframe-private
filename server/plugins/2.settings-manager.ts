@@ -59,8 +59,10 @@ async function migrateRuntimeConfigToSettings() {
         'mapbox.style': config.public.map.mapbox?.style || '',
         'maplibre.token': config.public.map.maplibre?.token || '',
         'maplibre.style': config.public.map.maplibre?.style || '',
+        'amap.key': config.public.map.amap?.key || '',
+        'amap.securityCode': config.public.map.amap?.securityCode || '',
       }
-      
+
       for (const [key, value] of Object.entries(mapSettings)) {
         if (value) {
           try {
@@ -68,6 +70,26 @@ async function migrateRuntimeConfigToSettings() {
             _logger.debug(`Migrated map.${key}`)
           } catch (error) {
             _logger.warn(`Failed to migrate map.${key}:`, error)
+          }
+        }
+      }
+    }
+
+    // Migrate location settings
+    if (config.location) {
+      _logger.info('Migrating location settings')
+      const locationSettings = {
+        provider: config.location.provider || '',
+        'amap.key': config.location.amap?.key || '',
+      }
+
+      for (const [key, value] of Object.entries(locationSettings)) {
+        if (value) {
+          try {
+            await settingsManager.set('location', key as any, value, undefined, true)
+            _logger.debug(`Migrated location.${key}`)
+          } catch (error) {
+            _logger.warn(`Failed to migrate location.${key}:`, error)
           }
         }
       }

@@ -38,7 +38,7 @@ const onClick = () => {
   >
     <template #marker>
       <HoverCardRoot
-        :open="isSelected || undefined"
+        :open="isSelected ? true : undefined"
         :open-delay="isSelected ? 0 : 600"
         :close-delay="isSelected ? Number.MAX_SAFE_INTEGER : 100"
         @close="$event.preventDefault()"

@@ -58,6 +58,7 @@ export const MAP_SETTINGS_UI: Record<string, FieldUIConfig> = {
     options: [
       { label: 'MapBox', value: 'mapbox' },
       { label: 'MapLibre', value: 'maplibre' },
+      { label: '高德地图', value: 'amap' },
     ],
   },
   'mapbox.token': {
@@ -84,18 +85,48 @@ export const MAP_SETTINGS_UI: Record<string, FieldUIConfig> = {
     placeholder: 'https://example.com/style.json',
     visibleIf: { fieldKey: 'provider', value: 'maplibre' },
   },
+  'amap.key': {
+    type: 'password',
+    placeholder: '请输入高德地图 JS API Key',
+    required: true,
+    visibleIf: { fieldKey: 'provider', value: 'amap' },
+    help: 'settings.map.amap.key.help',
+  },
+  'amap.securityCode': {
+    type: 'password',
+    placeholder: '请输入高德地图安全密钥（可选）',
+    visibleIf: { fieldKey: 'provider', value: 'amap' },
+    help: 'settings.map.amap.securityCode.help',
+  },
 }
 
 export const LOCATION_SETTINGS_UI: Record<string, FieldUIConfig> = {
+  provider: {
+    type: 'tabs',
+    options: [
+      { label: 'MapBox', value: 'mapbox' },
+      { label: 'Nominatim', value: 'nominatim' },
+      { label: '高德地图', value: 'amap' },
+    ],
+  },
   'mapbox.token': {
     type: 'password',
     placeholder: 'pk.xxxxxx',
+    visibleIf: { fieldKey: 'provider', value: 'mapbox' },
     help: 'settings.location.mapbox.token.help',
   },
   'nominatim.baseUrl': {
     type: 'url',
     placeholder: 'https://nominatim.openstreetmap.org',
+    visibleIf: { fieldKey: 'provider', value: 'nominatim' },
     help: 'settings.location.nominatim.baseUrl.help',
+  },
+  'amap.key': {
+    type: 'password',
+    placeholder: '请输入高德 Web 服务 API Key',
+    required: true,
+    visibleIf: { fieldKey: 'provider', value: 'amap' },
+    help: 'settings.location.amap.key.help',
   },
 }
 

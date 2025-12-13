@@ -1,12 +1,16 @@
 <script lang="ts" setup>
+import type { AMapMap } from '~~/shared/types/map'
+
 withDefaults(
   defineProps<{
     markerId?: string
     lnglat?: [number, number]
+    map?: AMapMap
   }>(),
   {
     markerId: undefined,
     lnglat: undefined,
+    map: undefined,
   },
 )
 
@@ -28,6 +32,16 @@ const provider = computed(() => mapConfig.value.provider || 'maplibre')
       <slot name="marker" />
     </template>
   </MapboxDefaultMarker>
+  <MapAMapMarker
+    v-else-if="provider === 'amap'"
+    :marker-id
+    :lnglat
+    :map
+  >
+    <template #marker>
+      <slot name="marker" />
+    </template>
+  </MapAMapMarker>
   <MglMarker
     v-else
     :coordinates="lnglat"

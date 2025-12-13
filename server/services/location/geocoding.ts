@@ -220,21 +220,148 @@ export class NominatimGeocodingProvider implements GeocodingProvider {
 }
 
 /**
+ * 高德地图地理编码提供者
+ * 适合中国地区的地理编码服务，支持中文地址解析
+ */
+export class AMapGeocodingProvider implements GeocodingProvider {
+  private apiKey: string
+  private readonly baseUrl = 'https://restapi.amap.com'
+  private lastRequestTime = 0
+  private readonly rateLimitMs = 200 // 高德API QPS限制，保守设置为200ms间隔
+
+  constructor(apiKey: string) {
+    this.apiKey = apiKey
+  }
+
+  async reverseGeocode(lat: number, lon: number): Promise<LocationInfo | null> {
+    try {
+      return await withRetry(
+        async () => {
+          await this.applyRateLimit()
+
+          const url = new URL('/v3/geocode/regeo', this.baseUrl)
+          url.searchParams.set('key', this.apiKey)
+          url.searchParams.set('location', `${lon},${lat}`)
+          url.searchParams.set('extensions', 'base')
+          url.searchParams.set('output', 'json')
+
+          logger.location.info(`AMap API URL: ${url.toString()}`)
+
+          const response = await fetch(url.toString())
+
+          if (!response.ok) {
+            throw new Error(
+              `AMap API error: ${response.status} ${response.statusText}`,
+            )
+          }
+
+          const data = await response.json()
+
+          if (!data || data.status !== '1' || !data.regeocode) {
+            logger.location.warn(
+              `AMap API returned error: ${data?.info || 'Unknown error'}`,
+            )
+            return null
+          }
+
+          const regeocode = data.regeocode
+          const addressComponent = regeocode.addressComponent || {}
+
+          const country = addressComponent.country || '中国'
+          const city =
+            addressComponent.city ||
+            addressComponent.province ||
+            addressComponent.district
+
+          const locationName = regeocode.formatted_address
+
+          logger.location.success(
+            `Successfully geocoded location: ${city}, ${country}`,
+          )
+
+          return {
+            latitude: lat,
+            longitude: lon,
+            country,
+            city,
+            locationName,
+          }
+        },
+        {
+          ...RetryPresets.network,
+          timeout: 10000,
+          delayStrategy: 'exponential',
+        },
+        logger.location,
+      )
+    } catch (error) {
+      logger.location.error(
+        'AMap reverse geocoding failed after all retries:',
+        error,
+      )
+      return null
+    }
+  }
+
+  private async applyRateLimit(): Promise<void> {
+    const now = Date.now()
+    const timeSinceLastRequest = now - this.lastRequestTime
+
+    if (timeSinceLastRequest < this.rateLimitMs) {
+      const delay = this.rateLimitMs - timeSinceLastRequest
+      await new Promise((resolve) => setTimeout(resolve, delay))
+    }
+
+    this.lastRequestTime = Date.now()
+  }
+}
+
+/**
  * 创建地理编码提供者实例
- * @description 优先使用 Mapbox，如果没有配置则回退到 Nominatim
+ * @description 根据配置选择地理编码提供者，支持 Mapbox、AMap 和 Nominatim
  */
 async function createGeocodingProvider(): Promise<GeocodingProvider> {
-  // const mapboxToken = useRuntimeConfig().mapbox?.accessToken
+  const provider = await settingsManager.get<string>('location', 'provider')
+
+  if (provider === 'amap') {
+    const amapKey = await settingsManager.get<string>('location', 'amap.key')
+    if (amapKey) {
+      return new AMapGeocodingProvider(amapKey)
+    }
+  }
+
+  if (provider === 'mapbox') {
+    const mapboxToken = await settingsManager.get<string>(
+      'location',
+      'mapbox.token',
+    )
+    if (mapboxToken) {
+      return new MapboxGeocodingProvider(mapboxToken)
+    }
+  }
+
+  if (provider === 'nominatim') {
+    return new NominatimGeocodingProvider(
+      (await settingsManager.get<string>('location', 'nominatim.baseUrl')) ||
+        undefined,
+    )
+  }
+
+  // 如果没有指定提供者，按优先级自动选择
+  const amapKey = await settingsManager.get<string>('location', 'amap.key')
+  if (amapKey) {
+    return new AMapGeocodingProvider(amapKey)
+  }
+
   const mapboxToken = await settingsManager.get<string>(
     'location',
     'mapbox.token',
   )
-
   if (mapboxToken) {
     return new MapboxGeocodingProvider(mapboxToken)
   }
 
-  // 回退到 Nominatim 提供者
+  // 最后回退到 Nominatim 提供者
   return new NominatimGeocodingProvider(
     (await settingsManager.get<string>('location', 'nominatim.baseUrl')) ||
       undefined,

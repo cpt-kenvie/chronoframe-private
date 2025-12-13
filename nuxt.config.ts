@@ -44,13 +44,17 @@ export default defineNuxtConfig({
         avatarUrl: '',
       },
       map: {
-        provider: 'maplibre' as 'mapbox' | 'maplibre',
+        provider: 'maplibre' as 'mapbox' | 'maplibre' | 'amap',
         mapbox: {
           style: ''
         },
         maplibre: {
           token: '',
           style: '',
+        },
+        amap: {
+          key: '',
+          securityCode: '',
         }
       },
       analytics: {
@@ -71,6 +75,12 @@ export default defineNuxtConfig({
     },
     nominatim: {
       baseUrl: 'https://nominatim.openstreetmap.org',
+    },
+    location: {
+      provider: '' as 'mapbox' | 'nominatim' | 'amap' | '',
+      amap: {
+        key: '',
+      },
     },
     STORAGE_PROVIDER: 's3' satisfies 's3' | 'local' | 'openlist',
     provider: {

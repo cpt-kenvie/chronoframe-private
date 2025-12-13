@@ -1,6 +1,7 @@
 <script lang="ts" setup>
 import { motion } from 'motion-v'
-import { isMapboxMap, type MapInstance } from '~~/shared/types/map'
+import { isMapboxMap, isAMapMap, type MapInstance } from '~~/shared/types/map'
+import { transformCoordinate } from '~/utils/coordinate-transform'
 
 const props = defineProps<{
   photo: Photo
@@ -12,38 +13,60 @@ const MAPID = 'minimap-info-panel'
 
 const config = useRuntimeConfig()
 
+const mapConfig = computed(() => {
+  const config = getSetting('map')
+  return typeof config === 'object' && config ? config : {}
+})
+
+const provider = computed(() => mapConfig.value.provider || 'maplibre')
+
 const loaded = ref(false)
 const isAnimating = ref(false)
 const mapInstance = ref<MapInstance | null>(null)
 let animationTimer: ReturnType<typeof setTimeout> | null = null
 
+const transformedCoordinates = computed(() => {
+  return transformCoordinate(props.longitude, props.latitude, provider.value)
+})
+
 const onMapLoad = (map: MapInstance) => {
   mapInstance.value = map
-  map.setCenter([props.longitude, props.latitude])
+  const [lng, lat] = transformedCoordinates.value
+
+  if (isAMapMap(map, provider.value)) {
+    map.setCenter([lng, lat])
+  } else {
+    map.setCenter([lng, lat])
+  }
+
   setTimeout(() => {
     loaded.value = true
   }, 100)
 }
 
 const moveMapTo = (newLat: number, newLng: number) => {
-  // 动画持续时间
   const DURATION = 1000
   if (mapInstance.value && loaded.value) {
-    // 清除之前的计时器
     if (animationTimer) {
       clearTimeout(animationTimer)
       animationTimer = null
     }
 
-    isAnimating.value = true
-    mapInstance.value.flyTo({
-      duration: DURATION,
-      center: [newLng, newLat],
-      zoom: 12,
-      essential: true,
-    })
+    const [lng, lat] = transformCoordinate(newLng, newLat, provider.value)
 
-    // 设置新的计时器，动画结束后显示指示点
+    isAnimating.value = true
+
+    if (isAMapMap(mapInstance.value, provider.value)) {
+      mapInstance.value.setZoomAndCenter(12, [lng, lat], false, DURATION)
+    } else {
+      mapInstance.value.flyTo({
+        duration: DURATION,
+        center: [lng, lat],
+        zoom: 12,
+        essential: true,
+      })
+    }
+
     animationTimer = setTimeout(() => {
       isAnimating.value = false
       animationTimer = null
