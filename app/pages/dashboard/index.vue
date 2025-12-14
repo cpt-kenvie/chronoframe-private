@@ -132,7 +132,7 @@ const onShareSite = () => {
     body: `## Description / Motto\n\n${config.public.app.slogan}\n\n## URL\n\n[${window.location.origin}](${window.location.origin})`,
   })
   window.open(
-    `https://github.com/HoshinoSuzumi/chronoframe/discussions/new?${discussionParams}`,
+    `https://github.com/cpt-kenvie/chronoframe-private/discussions/new?${discussionParams}`,
     '_blank',
   )
 }
@@ -198,7 +198,7 @@ const onShareSite = () => {
                 class="text-lg font-bold hover:text-primary"
                 target="_blank"
                 external
-                :to="`https://github.com/HoshinoSuzumi/chronoframe/releases/tag/v${$config.public.VERSION}`"
+                :to="`https://github.com/cpt-kenvie/chronoframe-private/releases/tag/v${$config.public.VERSION}`"
               >
                 v{{ $config.public.VERSION }}
               </NuxtLink>
