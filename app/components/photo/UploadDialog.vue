@@ -470,6 +470,113 @@ const validateFile = (file: File): { valid: boolean; error?: string } => {
   return { valid: true }
 }
 
+const getUploadingFile = (file: File): UploadingFile | undefined => {
+  const fileId = `${Date.now()}-${file.name}`
+  for (const [key, value] of uploadingFiles.value.entries()) {
+    if (value.fileName === file.name) {
+      return value
+    }
+  }
+  return undefined
+}
+
+const getFileIcon = (file: File): string => {
+  const videoExtensions = ['.mov', '.mp4', '.avi', '.mkv', '.webm', '.flv', '.wmv', '.m4v', '.3gp', '.mpeg', '.mpg']
+  const isVideo = file.type.startsWith('video/') || videoExtensions.some(ext => file.name.toLowerCase().endsWith(ext))
+  return isVideo ? 'tabler:video' : 'tabler:photo'
+}
+
+const getFileIconClass = (file: File): string => {
+  const uploadingFile = getUploadingFile(file)
+  if (uploadingFile?.status === 'completed') {
+    return 'text-green-600 dark:text-green-400'
+  }
+  if (uploadingFile?.status === 'error') {
+    return 'text-red-600 dark:text-red-400'
+  }
+  if (uploadingFile?.status === 'uploading' || uploadingFile?.status === 'processing') {
+    return 'text-primary-600 dark:text-primary-400'
+  }
+  if (duplicateCheckResults.value.get(file.name)?.exists) {
+    return 'text-neutral-400 dark:text-neutral-500'
+  }
+  return 'text-primary-600 dark:text-primary-400'
+}
+
+const getFileNameClass = (file: File): string => {
+  const uploadingFile = getUploadingFile(file)
+  if (uploadingFile?.status === 'error') {
+    return 'text-red-600 dark:text-red-400'
+  }
+  if (duplicateCheckResults.value.get(file.name)?.exists) {
+    return 'text-neutral-500 dark:text-neutral-400'
+  }
+  return 'text-neutral-700 dark:text-neutral-100'
+}
+
+const getStatusColor = (status?: string): string => {
+  switch (status) {
+    case 'completed':
+      return 'green'
+    case 'error':
+      return 'red'
+    case 'uploading':
+      return 'primary'
+    case 'processing':
+      return 'yellow'
+    case 'preparing':
+      return 'neutral'
+    case 'skipped':
+      return 'neutral'
+    default:
+      return 'neutral'
+  }
+}
+
+const getStatusText = (status?: string): string => {
+  switch (status) {
+    case 'waiting':
+      return '等待中'
+    case 'preparing':
+      return '准备中'
+    case 'uploading':
+      return '上传中'
+    case 'processing':
+      return '处理中'
+    case 'completed':
+      return '已完成'
+    case 'error':
+      return '失败'
+    case 'skipped':
+      return '已跳过'
+    case 'blocked':
+      return '已阻止'
+    default:
+      return ''
+  }
+}
+
+const getStageText = (stage?: string | null): string => {
+  switch (stage) {
+    case 'exif':
+      return '正在提取照片信息...'
+    case 'thumbnail':
+      return '正在生成缩略图...'
+    case 'motion-photo':
+      return '正在检测动态照片...'
+    case 'reverse-geocoding':
+      return '正在获取位置信息...'
+    case 'live-photo':
+      return '正在处理 Live Photo...'
+    case 'video-metadata':
+      return '正在提取视频信息...'
+    case 'video-thumbnail':
+      return '正在生成视频缩略图...'
+    default:
+      return '正在处理...'
+  }
+}
+
 const handleUpload = async () => {
   const fileList = selectedFiles.value
 
@@ -771,60 +878,135 @@ onUnmounted(() => {
             <div
               v-for="(file, index) in selectedFiles"
               :key="`${file.name}-${index}`"
-              class="flex items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-left shadow-sm transition-all"
+              class="rounded-2xl border px-4 py-3 text-left shadow-sm transition-all"
               :class="
                 duplicateCheckResults.get(file.name)?.exists
                   ? 'border-neutral-200/80 bg-neutral-50/50 dark:border-neutral-800/80 dark:bg-neutral-900/30 opacity-60'
                   : 'border-neutral-200/80 bg-white/80 dark:border-neutral-800/80 dark:bg-neutral-900/70'
               "
             >
-              <div class="flex items-center gap-3 min-w-0 flex-1">
-                <Icon
-                  name="tabler:photo"
-                  class="size-5 shrink-0"
-                  :class="
-                    duplicateCheckResults.get(file.name)?.exists
-                      ? 'text-neutral-400 dark:text-neutral-500'
-                      : 'text-primary-600 dark:text-primary-400'
-                  "
-                />
-                <div class="min-w-0 flex-1">
-                  <div class="flex items-center gap-2">
-                    <span
-                      class="text-sm font-medium truncate"
-                      :class="
-                        duplicateCheckResults.get(file.name)?.exists
-                          ? 'text-neutral-500 dark:text-neutral-400'
-                          : 'text-neutral-700 dark:text-neutral-100'
-                      "
+              <div class="flex items-start justify-between gap-3">
+                <div class="flex items-start gap-3 min-w-0 flex-1">
+                  <Icon
+                    :name="getFileIcon(file)"
+                    class="size-5 shrink-0 mt-0.5"
+                    :class="getFileIconClass(file)"
+                  />
+                  <div class="min-w-0 flex-1 space-y-2">
+                    <div>
+                      <div class="flex items-start gap-2 flex-wrap">
+                        <span
+                          class="text-sm font-medium break-all"
+                          :class="getFileNameClass(file)"
+                        >
+                          {{ file.name }}
+                        </span>
+                        <div class="flex items-center gap-2 shrink-0">
+                          <UBadge
+                            v-if="duplicateCheckResults.get(file.name)?.exists"
+                            variant="soft"
+                            color="neutral"
+                            size="xs"
+                          >
+                            已存在
+                          </UBadge>
+                          <UBadge
+                            v-if="getUploadingFile(file)?.status"
+                            variant="soft"
+                            :color="getStatusColor(getUploadingFile(file)?.status)"
+                            size="xs"
+                          >
+                            {{ getStatusText(getUploadingFile(file)?.status) }}
+                          </UBadge>
+                        </div>
+                      </div>
+                      <div class="flex items-center gap-2 text-xs text-neutral-500 dark:text-neutral-400 mt-1">
+                        <span>{{ formatBytes(file.size) }}</span>
+                        <template v-if="getUploadingFile(file)?.uploadProgress">
+                          <span class="text-neutral-300 dark:text-neutral-600">•</span>
+                          <span class="text-primary-600 dark:text-primary-400 font-medium">
+                            {{ getUploadingFile(file)?.uploadProgress?.speedText }}
+                          </span>
+                          <template v-if="getUploadingFile(file)?.uploadProgress?.timeRemainingText">
+                            <span class="text-neutral-300 dark:text-neutral-600">•</span>
+                            <span>剩余 {{ getUploadingFile(file)?.uploadProgress?.timeRemainingText }}</span>
+                          </template>
+                        </template>
+                      </div>
+                    </div>
+
+                    <!-- 上传进度条 -->
+                    <div
+                      v-if="getUploadingFile(file) && ['uploading', 'processing'].includes(getUploadingFile(file)?.status || '')"
+                      class="space-y-1"
                     >
-                      {{ file.name }}
-                    </span>
-                    <UBadge
-                      v-if="duplicateCheckResults.get(file.name)?.exists"
-                      variant="soft"
-                      color="neutral"
-                      size="xs"
+                      <div class="flex items-center justify-between text-xs">
+                        <span class="text-neutral-600 dark:text-neutral-400">
+                          {{ getUploadingFile(file)?.status === 'uploading' ? '上传中' : '处理中' }}
+                        </span>
+                        <span class="font-medium text-neutral-700 dark:text-neutral-300">
+                          {{ Math.round(getUploadingFile(file)?.progress || 0) }}%
+                        </span>
+                      </div>
+                      <div class="w-full h-1.5 bg-neutral-200 dark:bg-neutral-700 rounded-full overflow-hidden">
+                        <div
+                          class="h-full transition-all duration-300 rounded-full"
+                          :class="
+                            getUploadingFile(file)?.status === 'uploading'
+                              ? 'bg-primary-500'
+                              : 'bg-yellow-500 animate-pulse'
+                          "
+                          :style="{ width: `${getUploadingFile(file)?.progress || 0}%` }"
+                        />
+                      </div>
+                      <div
+                        v-if="getUploadingFile(file)?.stage"
+                        class="text-xs text-neutral-500 dark:text-neutral-400"
+                      >
+                        {{ getStageText(getUploadingFile(file)?.stage) }}
+                      </div>
+                    </div>
+
+                    <!-- 错误信息 -->
+                    <div
+                      v-if="getUploadingFile(file)?.status === 'error'"
+                      class="text-xs text-red-600 dark:text-red-400"
                     >
-                      已存在
-                    </UBadge>
+                      {{ getUploadingFile(file)?.error }}
+                    </div>
                   </div>
-                  <span class="text-xs text-neutral-500 dark:text-neutral-400">
-                    {{ formatBytes(file.size) }}
-                  </span>
+                </div>
+
+                <!-- 操作按钮 -->
+                <div class="flex items-center gap-1">
+                  <UButton
+                    v-if="getUploadingFile(file)?.canAbort"
+                    variant="ghost"
+                    color="red"
+                    size="xs"
+                    icon="tabler:x"
+                    @click="getUploadingFile(file)?.abortUpload?.()"
+                  />
+                  <UButton
+                    v-else-if="!isUploading"
+                    variant="ghost"
+                    color="neutral"
+                    size="xs"
+                    icon="tabler:x"
+                    @click="selectedFiles.splice(index, 1)"
+                  />
+                  <Icon
+                    v-else-if="getUploadingFile(file)?.status === 'completed'"
+                    name="tabler:check"
+                    class="size-5 text-green-600 dark:text-green-400"
+                  />
+                  <Icon
+                    v-else-if="getUploadingFile(file)?.status === 'error'"
+                    name="tabler:alert-circle"
+                    class="size-5 text-red-600 dark:text-red-400"
+                  />
                 </div>
               </div>
-              <UButton
-                variant="ghost"
-                color="neutral"
-                size="xs"
-                icon="tabler:x"
-                @click="
-                  () => {
-                    selectedFiles.splice(index, 1)
-                  }
-                "
-              />
             </div>
           </div>
         </div>

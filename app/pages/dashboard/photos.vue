@@ -997,6 +997,24 @@ const columns: TableColumn<Photo>[] = [
     header: $t('dashboard.photos.table.columns.isLivePhoto'),
     cell: ({ row }) => {
       const isLivePhoto = row.original.isLivePhoto
+      const isVideo = row.original.isVideo
+
+      if (isVideo) {
+        return h('div', { class: 'flex items-center gap-1' }, [
+          h(Icon, {
+            name: 'tabler:video',
+            class: 'size-4 text-blue-600 dark:text-blue-400',
+          }),
+          h(
+            'span',
+            {
+              class: 'text-blue-600 dark:text-blue-400 text-xs font-medium',
+            },
+            '视频',
+          ),
+        ])
+      }
+
       return h('div', { class: 'flex items-center gap-2' }, [
         isLivePhoto
           ? h('div', { class: 'flex items-center gap-1' }, [
@@ -1025,7 +1043,7 @@ const columns: TableColumn<Photo>[] = [
     sortingFn: (rowA, rowB) => {
       const valueA = rowA.original.isLivePhoto ? 1 : 0
       const valueB = rowB.original.isLivePhoto ? 1 : 0
-      return valueB - valueA // LivePhoto 优先排序
+      return valueB - valueA
     },
   },
   {

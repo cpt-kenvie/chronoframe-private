@@ -170,7 +170,9 @@ export const albumPhotos = sqliteTable('album_photos', {
   addedAt: integer('added_at', { mode: 'timestamp' })
     .notNull()
     .default(sql`(unixepoch())`),
-})
+}, (table) => ({
+  uniqueAlbumPhoto: uniqueIndex('album_photos_album_id_photo_id_unique').on(table.albumId, table.photoId),
+}))
 
 export const settings = sqliteTable(
   'settings',
