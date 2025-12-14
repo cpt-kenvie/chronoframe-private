@@ -64,8 +64,9 @@ const selectedFiles = ref<File[]>([])
 const uploadingFiles = ref<Map<string, UploadingFile>>(new Map())
 const checkingDuplicates = ref(false)
 const duplicateCheckResults = ref<Map<string, DuplicateCheckResult>>(new Map())
-const selectedAlbumId = ref<number | null>(props.targetAlbumId || null)
+const selectedAlbumId = ref<number | null>(null)
 const completedPhotoIds = ref<string[]>([])
+const isUploading = ref(false)
 
 // 获取所有相册
 const { data: albums, status: albumsStatus } = await useFetch<Album[]>('/api/albums')
@@ -81,12 +82,15 @@ const albumOptions = computed(() => {
   ]
 })
 
-// 监听 targetAlbumId 变化
+// 监听 targetAlbumId 和 open 变化，确保每次打开时都正确设置目标相册
 watch(
-  () => props.targetAlbumId,
-  (newValue) => {
-    selectedAlbumId.value = newValue || null
+  () => [props.targetAlbumId, props.open] as const,
+  ([newTargetAlbumId, newOpen]) => {
+    if (newOpen) {
+      selectedAlbumId.value = newTargetAlbumId || null
+    }
   },
+  { immediate: true },
 )
 
 const hasSelectedFiles = computed(() => selectedFiles.value.length > 0)
@@ -343,6 +347,7 @@ const uploadImage = async (file: File, existingFileId?: string) => {
               payload: {
                 type: isMovFile ? 'live-photo-video' : 'photo',
                 storageKey: signedUrlResponse.fileKey,
+                albumId: selectedAlbumId.value || undefined,
               },
               priority: isMovFile ? 0 : 1,
               maxAttempts: 3,
@@ -429,45 +434,158 @@ const handleUpload = async () => {
     return
   }
 
-  const errors: string[] = []
-  const validFiles: File[] = []
-  const fileIdMapping = new Map<File, string>()
-  const skippedFiles: string[] = []
-  const skippedPhotoIds: string[] = [] // 记录跳过的照片ID
+  isUploading.value = true
 
-  for (const file of fileList) {
-    const duplicateResult = duplicateCheckResults.value.get(file.name)
-    if (duplicateResult?.exists) {
-      skippedFiles.push(file.name)
-      // 记录已存在照片的ID，稍后添加到相册
-      if (duplicateResult.photoId) {
-        skippedPhotoIds.push(duplicateResult.photoId)
+  try {
+    const errors: string[] = []
+    const validFiles: File[] = []
+    const fileIdMapping = new Map<File, string>()
+    const skippedFiles: string[] = []
+    const skippedPhotoIds: string[] = []
+
+    for (const file of fileList) {
+      const duplicateResult = duplicateCheckResults.value.get(file.name)
+      if (duplicateResult?.exists) {
+        skippedFiles.push(file.name)
+        if (duplicateResult.photoId) {
+          skippedPhotoIds.push(duplicateResult.photoId)
+        }
+        continue
       }
-      continue
+
+      const validation = validateFile(file)
+      if (!validation.valid) {
+        errors.push(`${file.name}: ${validation.error}`)
+      } else {
+        validFiles.push(file)
+        const fileId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}-${file.name}`
+        fileIdMapping.set(file, fileId)
+      }
     }
 
-    const validation = validateFile(file)
-    if (!validation.valid) {
-      errors.push(`${file.name}: ${validation.error}`)
-    } else {
-      validFiles.push(file)
-      const fileId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}-${file.name}`
-      fileIdMapping.set(file, fileId)
+    if (skippedFiles.length > 0) {
+      toast.add({
+        title: '已跳过重复文件',
+        description: `跳过了 ${skippedFiles.length} 个已存在的文件${selectedAlbumId.value ? '，但会添加到目标相册' : ''}`,
+        color: 'info',
+      })
     }
-  }
 
-  if (skippedFiles.length > 0) {
-    toast.add({
-      title: '已跳过重复文件',
-      description: `跳过了 ${skippedFiles.length} 个已存在的文件${selectedAlbumId.value ? '，但会添加到目标相册' : ''}`,
-      color: 'info',
-    })
-  }
+    if (validFiles.length === 0) {
+      if (skippedFiles.length > 0 && selectedAlbumId.value && skippedPhotoIds.length > 0) {
+        try {
+          await $fetch(`/api/albums/${selectedAlbumId.value}/photos`, {
+            method: 'POST',
+            body: {
+              photoIds: skippedPhotoIds,
+            },
+          })
 
-  // 如果没有需要上传的文件，但有跳过的文件且选择了目标相册，仍然执行添加到相册的操作
-  if (validFiles.length === 0) {
-    if (skippedFiles.length > 0 && selectedAlbumId.value && skippedPhotoIds.length > 0) {
-      // 直接将跳过的照片添加到相册
+          toast.add({
+            title: '添加成功',
+            description: `已将 ${skippedPhotoIds.length} 张已存在的照片添加到相册`,
+            color: 'success',
+          })
+
+          emit('upload-complete', skippedPhotoIds)
+        } catch (error) {
+          console.error('添加照片到相册失败:', error)
+          toast.add({
+            title: '添加到相册失败',
+            description: '无法将照片添加到相册',
+            color: 'error',
+          })
+        }
+
+        selectedFiles.value = []
+        emit('update:open', false)
+        return
+      }
+
+      if (skippedFiles.length > 0) {
+        toast.add({
+          title: '没有需要上传的文件',
+          description: '所有文件都已存在',
+          color: 'warning',
+        })
+      } else {
+        toast.add({
+          title: '上传失败',
+          description: '所有文件验证失败',
+          color: 'error',
+        })
+      }
+      selectedFiles.value = []
+      return
+    }
+
+    completedPhotoIds.value = [...skippedPhotoIds]
+
+    for (const file of validFiles) {
+      const fileId = fileIdMapping.get(file)!
+      const uploadingFile: UploadingFile = {
+        file,
+        fileName: file.name,
+        fileId,
+        status: 'waiting',
+        canAbort: false,
+      }
+      uploadingFiles.value.set(fileId, uploadingFile)
+    }
+
+    uploadingFiles.value = new Map(uploadingFiles.value)
+
+    const CONCURRENT_LIMIT = 3
+    const fileQueue = [...validFiles]
+    const activeUploads = new Set<Promise<void>>()
+
+    const startUpload = async (file: File): Promise<void> => {
+      const fileId = fileIdMapping.get(file)!
+      try {
+        await uploadImage(file, fileId)
+      } catch (error: any) {
+        errors.push(`${file.name}: ${error.message || '上传失败'}`)
+        console.error('上传错误:', error)
+      }
+    }
+
+    const processQueue = async (): Promise<void> => {
+      while (fileQueue.length > 0 || activeUploads.size > 0) {
+        while (activeUploads.size < CONCURRENT_LIMIT && fileQueue.length > 0) {
+          const file = fileQueue.shift()!
+          const uploadPromise = startUpload(file)
+
+          activeUploads.add(uploadPromise)
+
+          uploadPromise.finally(() => {
+            activeUploads.delete(uploadPromise)
+          })
+        }
+
+        if (activeUploads.size > 0) {
+          await Promise.race(activeUploads)
+        }
+      }
+    }
+
+    await processQueue()
+
+    if (errors.length > 0) {
+      console.error('批量上传错误详情:', errors)
+    }
+
+    // 如果选择了相册，显示提示信息
+    if (selectedAlbumId.value) {
+      const totalFiles = validFiles.length + skippedPhotoIds.length
+      toast.add({
+        title: '上传任务已提交',
+        description: `${totalFiles} 个文件已提交处理，完成后将自动添加到相册`,
+        color: 'success',
+      })
+    }
+
+    // 如果有跳过的文件且选择了相册，立即添加到相册
+    if (selectedAlbumId.value && skippedPhotoIds.length > 0) {
       try {
         await $fetch(`/api/albums/${selectedAlbumId.value}/photos`, {
           method: 'POST',
@@ -475,135 +593,18 @@ const handleUpload = async () => {
             photoIds: skippedPhotoIds,
           },
         })
-
-        toast.add({
-          title: '添加成功',
-          description: `已将 ${skippedPhotoIds.length} 张已存在的照片添加到相册`,
-          color: 'success',
-        })
-
-        emit('upload-complete', skippedPhotoIds)
       } catch (error) {
-        console.error('添加照片到相册失败:', error)
-        toast.add({
-          title: '添加到相册失败',
-          description: '无法将照片添加到相册',
-          color: 'error',
-        })
+        console.error('添加已存在照片到相册失败:', error)
       }
-
-      selectedFiles.value = []
-      emit('update:open', false)
-      return
     }
 
-    if (skippedFiles.length > 0) {
-      toast.add({
-        title: '没有需要上传的文件',
-        description: '所有文件都已存在',
-        color: 'warning',
-      })
-    } else {
-      toast.add({
-        title: '上传失败',
-        description: '所有文件验证失败',
-        color: 'error',
-      })
-    }
+    emit('upload-complete', completedPhotoIds.value)
+
     selectedFiles.value = []
-    return
+    emit('update:open', false)
+  } finally {
+    isUploading.value = false
   }
-
-  // 重置完成的照片ID列表，并添加跳过的照片ID
-  completedPhotoIds.value = [...skippedPhotoIds]
-
-  // 为所有有效文件创建队列条目
-  for (const file of validFiles) {
-    const fileId = fileIdMapping.get(file)!
-    const uploadingFile: UploadingFile = {
-      file,
-      fileName: file.name,
-      fileId,
-      status: 'waiting',
-      canAbort: false,
-    }
-    uploadingFiles.value.set(fileId, uploadingFile)
-  }
-
-  uploadingFiles.value = new Map(uploadingFiles.value)
-
-  const CONCURRENT_LIMIT = 3
-  const fileQueue = [...validFiles]
-  const activeUploads = new Set<Promise<void>>()
-
-  const startUpload = async (file: File): Promise<void> => {
-    const fileId = fileIdMapping.get(file)!
-    try {
-      await uploadImage(file, fileId)
-    } catch (error: any) {
-      errors.push(`${file.name}: ${error.message || '上传失败'}`)
-      console.error('上传错误:', error)
-    }
-  }
-
-  const processQueue = async (): Promise<void> => {
-    while (fileQueue.length > 0 || activeUploads.size > 0) {
-      while (activeUploads.size < CONCURRENT_LIMIT && fileQueue.length > 0) {
-        const file = fileQueue.shift()!
-        const uploadPromise = startUpload(file)
-
-        activeUploads.add(uploadPromise)
-
-        uploadPromise.finally(() => {
-          activeUploads.delete(uploadPromise)
-        })
-      }
-
-      if (activeUploads.size > 0) {
-        await Promise.race(activeUploads)
-      }
-    }
-  }
-
-  await processQueue()
-
-  if (errors.length > 0) {
-    console.error('批量上传错误详情:', errors)
-  }
-
-  // 等待所有任务完成处理
-  await new Promise((resolve) => setTimeout(resolve, 2000))
-
-  // 如果选择了目标相册，将完成的照片添加到相册
-  if (selectedAlbumId.value && completedPhotoIds.value.length > 0) {
-    try {
-      await $fetch(`/api/albums/${selectedAlbumId.value}/photos`, {
-        method: 'POST',
-        body: {
-          photoIds: completedPhotoIds.value,
-        },
-      })
-
-      toast.add({
-        title: '上传完成',
-        description: `已将 ${completedPhotoIds.value.length} 张照片添加到相册`,
-        color: 'success',
-      })
-    } catch (error) {
-      console.error('添加照片到相册失败:', error)
-      toast.add({
-        title: '添加到相册失败',
-        description: '照片已上传，但添加到相册失败',
-        color: 'warning',
-      })
-    }
-  }
-
-  // 触发上传完成事件
-  emit('upload-complete', completedPhotoIds.value)
-
-  selectedFiles.value = []
-  emit('update:open', false)
 }
 
 const handleClose = () => {
@@ -809,11 +810,14 @@ onUnmounted(() => {
             size="lg"
             class="w-full sm:w-auto"
             icon="tabler:upload"
-            :disabled="!hasSelectedFiles || checkingDuplicates"
-            :loading="checkingDuplicates"
+            :disabled="!hasSelectedFiles || checkingDuplicates || isUploading"
+            :loading="checkingDuplicates || isUploading"
             @click="handleUpload"
           >
-            <template v-if="checkingDuplicates">
+            <template v-if="isUploading">
+              上传中...
+            </template>
+            <template v-else-if="checkingDuplicates">
               检查中...
             </template>
             <template v-else-if="hasSelectedFiles && existingFilesCount > 0">

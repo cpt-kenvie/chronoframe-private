@@ -8,10 +8,12 @@ export default defineEventHandler(async (event) => {
       z.object({
         type: z.literal('photo'),
         storageKey: z.string().nonempty(),
+        albumId: z.number().int().positive().optional(),
       }),
       z.object({
         type: z.literal('live-photo-video'),
         storageKey: z.string().nonempty(),
+        albumId: z.number().int().positive().optional(),
       }),
       z.object({
         type: z.literal('photo-reverse-geocoding'),

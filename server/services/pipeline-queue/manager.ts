@@ -425,6 +425,57 @@ export class QueueManager {
             set: result,
           })
 
+          // 如果 payload 中指定了 albumId，将照片添加到相册
+          if (payload.albumId) {
+            try {
+              // 检查相册是否存在
+              const album = await db
+                .select()
+                .from(tables.albums)
+                .where(eq(tables.albums.id, payload.albumId))
+                .get()
+
+              if (album) {
+                // 检查照片是否已经在相册中
+                const existingRelation = await db
+                  .select()
+                  .from(tables.albumPhotos)
+                  .where(
+                    sql`${tables.albumPhotos.albumId} = ${payload.albumId} AND ${tables.albumPhotos.photoId} = ${photoId}`,
+                  )
+                  .get()
+
+                if (!existingRelation) {
+                  // 插入到关系表
+                  await db
+                    .insert(tables.albumPhotos)
+                    .values({
+                      albumId: payload.albumId,
+                      photoId: photoId,
+                    })
+                    .run()
+
+                  this.logger.info(
+                    `Added photo ${photoId} to album ${payload.albumId}`,
+                  )
+                } else {
+                  this.logger.debug(
+                    `Photo ${photoId} already in album ${payload.albumId}`,
+                  )
+                }
+              } else {
+                this.logger.warn(
+                  `Album ${payload.albumId} not found, skipping album association`,
+                )
+              }
+            } catch (error) {
+              this.logger.error(
+                `Failed to add photo ${photoId} to album ${payload.albumId}:`,
+                error,
+              )
+            }
+          }
+
           this.logger.success(`Task ${taskId} processed successfully`)
           return result
         } catch (error) {
