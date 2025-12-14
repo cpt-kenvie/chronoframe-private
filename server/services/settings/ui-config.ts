@@ -289,6 +289,15 @@ export const STORAGE_SETTINGS_UI: Record<string, FieldUIConfig> = {
     help: 'settings.storage.openlist.pathField.description',
     visibleIf: { fieldKey: 'provider', value: 'openlist' }
   },
+  'encryption.enabled': {
+    type: 'toggle',
+    help: 'settings.storage.encryption.enabled.help',
+  },
+  'encryption.key': {
+    type: 'password',
+    placeholder: 'base64 / hex / passphrase',
+    help: 'settings.storage.encryption.key.help',
+  },
 }
 
 /**

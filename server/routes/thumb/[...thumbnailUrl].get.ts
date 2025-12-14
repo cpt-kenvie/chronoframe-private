@@ -1,8 +1,6 @@
 import sharp from 'sharp'
 
 export default eventHandler(async (event) => {
-  const { storageProvider } = useStorageProvider(event)
-
   let url = getRouterParam(event, 'thumbnailUrl')
 
   if (!url) {
@@ -11,7 +9,8 @@ export default eventHandler(async (event) => {
 
   url = decodeURIComponent(url)
 
-  if (storageProvider.config?.provider === 'local' && url.startsWith('/storage/')) {
+  // Server-side fetch requires absolute URL; support any same-origin absolute-path URL.
+  if (url.startsWith('/')) {
     const scheme = event.node.req.headers['x-forwarded-proto'] || 'http'
     url = `${scheme}://${event.node.req.headers.host}${url}`
   }

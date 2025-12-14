@@ -341,6 +341,18 @@
         "iccProfile": "ICC 設定檔",
         "uncalibrated": "未校正",
         "rgb": "RGB"
+      },
+      "encryption": {
+        "enabled": {
+          "label": "Encrypt Storage",
+          "description": "Encrypt files before storing them in the configured provider",
+          "help": "When enabled, uploads and generated thumbnails are stored encrypted; the app will decrypt when serving to users"
+        },
+        "key": {
+          "label": "Encryption Key",
+          "description": "Key used to encrypt/decrypt stored files",
+          "help": "Use a random 32-byte key (hex/base64) and keep it safe; changing it will make old encrypted files unreadable"
+        }
       }
     }
   },
@@ -999,6 +1011,18 @@
         "cdnUrl": {
           "label": "CDN URL",
           "description": "用於訪問圖像嘅自訂 CDN URL"
+        }
+      },
+      "encryption": {
+        "enabled": {
+          "label": "啟用儲存加密",
+          "description": "上傳的原檔與產生的縮略圖會以加密形式儲存於儲存方案中",
+          "help": "開啟後儲存端只保存密文；使用者存取時由系統按需解密並呈現"
+        },
+        "key": {
+          "label": "加密金鑰",
+          "description": "用於加密/解密儲存檔案的金鑰",
+          "help": "建議使用隨機 32 位元組金鑰（hex/base64）；不要遺失或隨意更換，否則歷史檔案將無法解密"
         }
       }
     }

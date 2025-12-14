@@ -1,7 +1,25 @@
 import { asc, getTableColumns } from 'drizzle-orm'
 import z from 'zod'
+import { useStorageProvider } from '~~/server/utils/useStorageProvider'
+import { isStorageEncryptionEnabled, resolveOriginalKeyForPhoto, toFileProxyUrl } from '~~/server/utils/publicFile'
 
 export default eventHandler(async (event) => {
+  const { storageProvider } = useStorageProvider(event)
+  const encryptionEnabled = await isStorageEncryptionEnabled()
+  const toUrl = (key?: string | null) => {
+    if (!key) return null
+    return encryptionEnabled ? toFileProxyUrl(key) : storageProvider.getPublicUrl(key)
+  }
+  const withUrls = (photo: any) => {
+    const originalKey = resolveOriginalKeyForPhoto(photo.storageKey) || photo.storageKey
+    return {
+      ...photo,
+      originalUrl: toUrl(originalKey),
+      thumbnailUrl: toUrl(photo.thumbnailKey),
+      livePhotoVideoUrl: toUrl(photo.livePhotoVideoKey),
+    }
+  }
+
   const { albumId } = await getValidatedRouterParams(
     event,
     z.object({
@@ -88,6 +106,6 @@ export default eventHandler(async (event) => {
 
   return {
     ...album,
-    photos: filteredPhotos,
+    photos: filteredPhotos.map(withUrls),
   }
 })

@@ -6,6 +6,7 @@ import { eq } from 'drizzle-orm'
 import { findLivePhotoVideoForImage } from '~~/server/services/video/livephoto'
 import { getStorageManager } from '~~/server/plugins/3.storage'
 import { batchTestLivePhotoDetection } from '~~/server/services/video/test-utils'
+import { isStorageEncryptionEnabled, toFileProxyUrl } from '~~/server/utils/publicFile'
 
 export default eventHandler(async (event) => {
   await requireUserSession(event)
@@ -86,14 +87,16 @@ export default eventHandler(async (event) => {
 
         if (livePhotoVideo) {
           const storageProvider = getStorageManager().getProvider()
+          const encryptionEnabled = await isStorageEncryptionEnabled()
+          const videoUrl = encryptionEnabled
+            ? toFileProxyUrl(livePhotoVideo.videoKey)
+            : storageProvider.getPublicUrl(livePhotoVideo.videoKey)
 
           await db
             .update(tables.photos)
             .set({
               isLivePhoto: 1,
-              livePhotoVideoUrl: storageProvider.getPublicUrl(
-                livePhotoVideo.videoKey,
-              ),
+              livePhotoVideoUrl: videoUrl,
               livePhotoVideoKey: livePhotoVideo.videoKey,
             })
             .where(eq(tables.photos.id, photoId))

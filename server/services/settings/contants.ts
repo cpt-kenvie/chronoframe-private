@@ -175,6 +175,23 @@ export const DEFAULT_SETTINGS = [
     label: 'settings.storage_provider.provider.label',
     description: 'settings.storage_provider.provider.description',
   },
+  {
+    namespace: 'storage',
+    key: 'encryption.enabled',
+    type: 'boolean',
+    defaultValue: true,
+    label: 'settings.storage.encryption.enabled.label',
+    description: 'settings.storage.encryption.enabled.description',
+  },
+  {
+    namespace: 'storage',
+    key: 'encryption.key',
+    type: 'string',
+    defaultValue: '',
+    label: 'settings.storage.encryption.key.label',
+    description: 'settings.storage.encryption.key.description',
+    isSecret: true,
+  },
   // NAMESPACE: oauth
   {
     namespace: 'oauth',

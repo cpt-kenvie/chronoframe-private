@@ -2,6 +2,7 @@ import path from 'path'
 import { useStorageProvider } from '~~/server/utils/useStorageProvider'
 import { eq } from 'drizzle-orm'
 import { generateSafePhotoId } from '~~/server/utils/file-utils'
+import { isStorageEncryptionEnabled, resolveOriginalKeyForPhoto, toFileProxyUrl } from '~~/server/utils/publicFile'
 
 const VIDEO_EXTENSIONS = new Set([
   '.mov',
@@ -54,6 +55,7 @@ export default eventHandler(async (event) => {
   const { storageProvider } = useStorageProvider(event)
   const config = useRuntimeConfig(event)
   const t = await useTranslation(event)
+  const encryptionEnabled = await isStorageEncryptionEnabled()
 
   const body = await readBody(event)
   const { fileName, contentType, skipDuplicateCheck } = body
@@ -83,6 +85,8 @@ export default eventHandler(async (event) => {
           id: tables.photos.id,
           title: tables.photos.title,
           storageKey: tables.photos.storageKey,
+          thumbnailKey: tables.photos.thumbnailKey,
+          livePhotoVideoKey: tables.photos.livePhotoVideoKey,
           originalUrl: tables.photos.originalUrl,
           thumbnailUrl: tables.photos.thumbnailUrl,
           dateTaken: tables.photos.dateTaken,
@@ -90,6 +94,16 @@ export default eventHandler(async (event) => {
         .from(tables.photos)
         .where(eq(tables.photos.id, photoId))
         .get()
+
+      if (existingPhoto && encryptionEnabled) {
+        const originalKey =
+          resolveOriginalKeyForPhoto(existingPhoto.storageKey) ||
+          existingPhoto.storageKey
+        existingPhoto.originalUrl = originalKey ? toFileProxyUrl(originalKey) : null
+        existingPhoto.thumbnailUrl = existingPhoto.thumbnailKey
+          ? toFileProxyUrl(existingPhoto.thumbnailKey)
+          : null
+      }
 
       if (existingPhoto && isVideoUpload && isLikelyImageKey(existingPhoto.storageKey)) {
         existingPhoto = null
@@ -130,7 +144,7 @@ export default eventHandler(async (event) => {
     }
 
     // 若存储提供商支持预签名 URL，返回外部直传地址
-    if (storageProvider.getSignedUrl) {
+    if (!encryptionEnabled && storageProvider.getSignedUrl) {
       const signedUrl = await storageProvider.getSignedUrl(objectKey, 3600, {
         contentType: contentType || 'application/octet-stream',
       })

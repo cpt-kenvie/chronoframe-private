@@ -1,7 +1,15 @@
 import { eq } from 'drizzle-orm'
+import { useStorageProvider } from '~~/server/utils/useStorageProvider'
+import { isStorageEncryptionEnabled, resolveOriginalKeyForPhoto, toFileProxyUrl } from '~~/server/utils/publicFile'
 
 export default eventHandler(async (event) => {
   await requireUserSession(event)
+  const { storageProvider } = useStorageProvider(event)
+  const encryptionEnabled = await isStorageEncryptionEnabled()
+  const toUrl = (key?: string | null) => {
+    if (!key) return null
+    return encryptionEnabled ? toFileProxyUrl(key) : storageProvider.getPublicUrl(key)
+  }
   
   const photoId = getRouterParam(event, 'photoId')
   
@@ -31,13 +39,15 @@ export default eventHandler(async (event) => {
     
     const photo = photos[0]
     
+    const originalKey = resolveOriginalKeyForPhoto(photo.storageKey) || photo.storageKey
+
     return {
       id: photo.id,
       title: photo.title,
       isLivePhoto: Boolean(photo.isLivePhoto),
-      livePhotoVideoUrl: photo.livePhotoVideoUrl,
-      originalUrl: photo.originalUrl,
-      thumbnailUrl: photo.thumbnailUrl,
+      livePhotoVideoUrl: toUrl(photo.livePhotoVideoKey),
+      originalUrl: toUrl(originalKey),
+      thumbnailUrl: toUrl(photo.thumbnailKey),
     }
   } catch (error) {
     logger.chrono.error('Failed to get photo details:', error)

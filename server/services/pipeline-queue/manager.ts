@@ -21,6 +21,7 @@ import { findLivePhotoVideoForImage } from '../video/livephoto'
 import { processMotionPhotoFromXmp } from '../video/motion-photo'
 import { processVideoMetadata } from '../video/processor'
 import { getStorageManager } from '~~/server/plugins/3.storage'
+import { isStorageEncryptionEnabled, toFileProxyUrl } from '~~/server/utils/publicFile'
 
 export class QueueManager {
   private static instances: Map<string, QueueManager> = new Map()
@@ -238,6 +239,11 @@ export class QueueManager {
         }
         const { storageKey } = payload
         const storageProvider = getStorageManager().getProvider()
+        const encryptionEnabled = await isStorageEncryptionEnabled()
+        const toUrl = (key?: string | null) => {
+          if (!key) return null
+          return encryptionEnabled ? toFileProxyUrl(key) : storageProvider.getPublicUrl(key)
+        }
         const photoId = generateSafePhotoId(storageKey)
 
         try {
@@ -358,9 +364,7 @@ export class QueueManager {
             if (livePhotoVideo) {
               livePhotoInfo = {
                 isLivePhoto: 1,
-                livePhotoVideoUrl: storageProvider.getPublicUrl(
-                  livePhotoVideo.videoKey,
-                ),
+                livePhotoVideoUrl: toUrl(livePhotoVideo.videoKey),
                 livePhotoVideoKey: livePhotoVideo.videoKey,
               }
               this.logger.info(
@@ -392,9 +396,9 @@ export class QueueManager {
               storageObject.lastModified?.toISOString() ||
               new Date().toISOString(),
             originalUrl: imageBuffers.jpegKey
-              ? storageProvider.getPublicUrl(imageBuffers.jpegKey) // 使用 JPEG 版本作为 originalUrl
-              : storageProvider.getPublicUrl(storageKey),
-            thumbnailUrl: storageProvider.getPublicUrl(thumbnailObject.key),
+              ? toUrl(imageBuffers.jpegKey) // 使用 JPEG 版本作为 originalUrl
+              : toUrl(storageKey),
+            thumbnailUrl: toUrl(thumbnailObject.key),
             thumbnailHash: thumbnailHash
               ? compressUint8Array(thumbnailHash)
               : null,
@@ -587,6 +591,11 @@ export class QueueManager {
       livePhotoDetect: async (task: PipelineQueueItem) => {
         const db = useDB()
         const storageProvider = getStorageManager().getProvider()
+        const encryptionEnabled = await isStorageEncryptionEnabled()
+        const toUrl = (key?: string | null) => {
+          if (!key) return null
+          return encryptionEnabled ? toFileProxyUrl(key) : storageProvider.getPublicUrl(key)
+        }
 
         const { id: taskId, payload } = task
         if (payload.type !== 'live-photo-video') {
@@ -655,7 +664,7 @@ export class QueueManager {
             )
           }
 
-          const livePhotoVideoUrl = storageProvider.getPublicUrl(videoKey)
+          const livePhotoVideoUrl = toUrl(videoKey)
           await db
             .update(tables.photos)
             .set({
@@ -685,6 +694,11 @@ export class QueueManager {
         }
         const { storageKey } = payload
         const storageProvider = getStorageManager().getProvider()
+        const encryptionEnabled = await isStorageEncryptionEnabled()
+        const toUrl = (key?: string | null) => {
+          if (!key) return null
+          return encryptionEnabled ? toFileProxyUrl(key) : storageProvider.getPublicUrl(key)
+        }
         const photoId = generateSafePhotoId(storageKey)
 
         try {
@@ -735,8 +749,8 @@ export class QueueManager {
             thumbnailKey: thumbnailObject.key,
             fileSize: storageObject.size || null,
             lastModified: storageObject.lastModified?.toISOString() || new Date().toISOString(),
-            originalUrl: storageProvider.getPublicUrl(storageKey),
-            thumbnailUrl: storageProvider.getPublicUrl(thumbnailObject.key),
+            originalUrl: toUrl(storageKey),
+            thumbnailUrl: toUrl(thumbnailObject.key),
             thumbnailHash: null,
             exif: null,
             latitude: null,

@@ -8,6 +8,7 @@ import { eq } from 'drizzle-orm'
 import { extractExifData } from '~~/server/services/image/exif'
 import { tables, useDB } from '~~/server/utils/db'
 import { useStorageProvider } from '~~/server/utils/useStorageProvider'
+import { isStorageEncryptionEnabled, resolveOriginalKeyForPhoto, toFileProxyUrl } from '~~/server/utils/publicFile'
 
 const paramsSchema = z.object({
   photoId: z.string().min(1),
@@ -86,6 +87,11 @@ export default eventHandler(async (event) => {
   }
 
   const { storageProvider } = useStorageProvider(event)
+  const encryptionEnabled = await isStorageEncryptionEnabled()
+  const toUrl = (key?: string | null) => {
+    if (!key) return null
+    return encryptionEnabled ? toFileProxyUrl(key) : storageProvider.getPublicUrl(key)
+  }
   const originalBuffer = await storageProvider.get(photo.storageKey)
 
   if (!originalBuffer) {
@@ -225,6 +231,15 @@ export default eventHandler(async (event) => {
       .from(tables.photos)
       .where(eq(tables.photos.id, photoId))
       .get()
+
+    if (updatedPhoto) {
+      const originalKey =
+        resolveOriginalKeyForPhoto(updatedPhoto.storageKey) ||
+        updatedPhoto.storageKey
+      ;(updatedPhoto as any).originalUrl = toUrl(originalKey)
+      ;(updatedPhoto as any).thumbnailUrl = toUrl(updatedPhoto.thumbnailKey)
+      ;(updatedPhoto as any).livePhotoVideoUrl = toUrl(updatedPhoto.livePhotoVideoKey)
+    }
 
     if (pendingReverseGeocode) {
       const workerPool = globalThis.__workerPool

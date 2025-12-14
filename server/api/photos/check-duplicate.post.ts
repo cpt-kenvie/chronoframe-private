@@ -1,6 +1,8 @@
 import { z } from 'zod'
 import { eq } from 'drizzle-orm'
 import { generateSafePhotoId } from '~~/server/utils/file-utils'
+import { isStorageEncryptionEnabled, resolveOriginalKeyForPhoto, toFileProxyUrl } from '~~/server/utils/publicFile'
+import { useStorageProvider } from '~~/server/utils/useStorageProvider'
 
 /**
  * 检查照片是否已存在
@@ -10,6 +12,12 @@ export default defineEventHandler(async (event) => {
   await requireUserSession(event)
 
   const t = await useTranslation(event)
+  const { storageProvider } = useStorageProvider(event)
+  const encryptionEnabled = await isStorageEncryptionEnabled()
+  const toUrl = (key?: string | null) => {
+    if (!key) return null
+    return encryptionEnabled ? toFileProxyUrl(key) : storageProvider.getPublicUrl(key)
+  }
 
   try {
     const { fileNames, storageKeys } = await readValidatedBody(
@@ -38,7 +46,6 @@ export default defineEventHandler(async (event) => {
     if (fileNames && fileNames.length > 0) {
       for (const fileName of fileNames) {
         // 生成 photoId（与上传时的逻辑相同）
-        const { storageProvider } = useStorageProvider(event)
         const storageKey = `${(storageProvider.config?.prefix || '').replace(/\/+$/, '')}/${fileName}`
         const photoId = generateSafePhotoId(storageKey)
 
@@ -48,6 +55,8 @@ export default defineEventHandler(async (event) => {
             id: tables.photos.id,
             title: tables.photos.title,
             storageKey: tables.photos.storageKey,
+            thumbnailKey: tables.photos.thumbnailKey,
+            livePhotoVideoKey: tables.photos.livePhotoVideoKey,
             originalUrl: tables.photos.originalUrl,
             thumbnailUrl: tables.photos.thumbnailUrl,
             dateTaken: tables.photos.dateTaken,
@@ -58,6 +67,12 @@ export default defineEventHandler(async (event) => {
           .from(tables.photos)
           .where(eq(tables.photos.id, photoId))
           .get()
+
+        if (existingPhoto) {
+          const originalKey = resolveOriginalKeyForPhoto(existingPhoto.storageKey) || existingPhoto.storageKey
+          existingPhoto.originalUrl = toUrl(originalKey) as any
+          existingPhoto.thumbnailUrl = toUrl(existingPhoto.thumbnailKey) as any
+        }
 
         results.push({
           fileName,
@@ -79,6 +94,8 @@ export default defineEventHandler(async (event) => {
             id: tables.photos.id,
             title: tables.photos.title,
             storageKey: tables.photos.storageKey,
+            thumbnailKey: tables.photos.thumbnailKey,
+            livePhotoVideoKey: tables.photos.livePhotoVideoKey,
             originalUrl: tables.photos.originalUrl,
             thumbnailUrl: tables.photos.thumbnailUrl,
             dateTaken: tables.photos.dateTaken,
@@ -89,6 +106,12 @@ export default defineEventHandler(async (event) => {
           .from(tables.photos)
           .where(eq(tables.photos.id, photoId))
           .get()
+
+        if (existingPhoto) {
+          const originalKey = resolveOriginalKeyForPhoto(existingPhoto.storageKey) || existingPhoto.storageKey
+          existingPhoto.originalUrl = toUrl(originalKey) as any
+          existingPhoto.thumbnailUrl = toUrl(existingPhoto.thumbnailKey) as any
+        }
 
         results.push({
           storageKey,

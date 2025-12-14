@@ -13,6 +13,18 @@ import type {
   UploadOptions,
 } from '../interfaces'
 
+const sanitizeKey = (key: string) =>
+  key.replace(/\\/g, '/').replace(/\/+/g, '/').replace(/^\/+/, '')
+
+const combinePrefixAndKey = (prefix: string | undefined, key: string) => {
+  const cleanPrefix = (prefix || '').replace(/\/+$/, '').replace(/^\/+/, '')
+  const cleanKey = sanitizeKey(key)
+  if (!cleanPrefix) return cleanKey
+  return cleanKey === cleanPrefix || cleanKey.startsWith(`${cleanPrefix}/`)
+    ? cleanKey
+    : `${cleanPrefix}/${cleanKey}`
+}
+
 const createClient = (config: S3StorageConfig): S3Client => {
   if (config.provider !== 's3') {
     throw new Error('Invalid provider for S3 client creation')
@@ -64,11 +76,7 @@ export class S3StorageProvider implements StorageProvider {
     contentType?: string,
   ): Promise<StorageObject> {
     try {
-      const absoluteKey =
-        `${(this.config.prefix || '').replace(/\/+$/, '')}/${key}`.replace(
-          /^\/+/,
-          '',
-        )
+      const absoluteKey = combinePrefixAndKey(this.config.prefix, key)
       const cmd = new PutObjectCommand({
         Bucket: this.config.bucket,
         Key: absoluteKey,

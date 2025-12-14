@@ -18,6 +18,28 @@ useHead({
 
 const toast = useToast()
 
+const {
+  fields: storageFields,
+  state: storageState,
+  submit: storageSubmit,
+  loading: storageLoading,
+} = useSettingsForm('storage')
+
+const storageEncryptionFields = computed(() =>
+  storageFields.value.filter((f) => f.key.startsWith('encryption.')),
+)
+
+const handleStorageEncryptionSubmit = async () => {
+  try {
+    await storageSubmit({
+      'encryption.enabled': storageState['encryption.enabled'],
+      'encryption.key': storageState['encryption.key'],
+    })
+  } catch {
+    /* empty */
+  }
+}
+
 const { data: currentStorageProvider, refresh: refreshCurrentStorageProvider } =
   await useFetch<{
     namespace: string
@@ -559,6 +581,38 @@ const onStorageDelete = async (storageId: number) => {
 
     <template #body>
       <div class="space-y-6 max-w-6xl">
+        <UCard variant="outline">
+          <template #header>
+            <span>加密存储</span>
+          </template>
+
+          <UForm
+            id="storageEncryptionForm"
+            class="space-y-4"
+            @submit="handleStorageEncryptionSubmit"
+          >
+            <SettingField
+              v-for="field in storageEncryptionFields"
+              :key="field.key"
+              :field="field"
+              :model-value="storageState[field.key]"
+              @update:model-value="(val) => (storageState[field.key] = val)"
+            />
+          </UForm>
+
+          <template #footer>
+            <UButton
+              :loading="storageLoading"
+              type="submit"
+              form="storageEncryptionForm"
+              variant="soft"
+              icon="tabler:device-floppy"
+            >
+              保存设置
+            </UButton>
+          </template>
+        </UCard>
+
         <UCard variant="outline">
           <div class="space-y-4">
             <UFormField

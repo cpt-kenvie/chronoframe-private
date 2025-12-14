@@ -19,6 +19,22 @@ export default eventHandler(async (event) => {
     })
   }
 
+  const normalizedKey = key
+    .replace(/\\/g, '/')
+    .replace(/\/+/g, '/')
+    .replace(/^\/+/, '')
+
+  if (!normalizedKey || normalizedKey.includes('..')) {
+    throw createError({
+      statusCode: 400,
+      statusMessage: t('upload.error.required.title'),
+      data: {
+        title: t('upload.error.required.title'),
+        message: t('upload.error.required.message', { field: 'key' }),
+      },
+    })
+  }
+
   const contentType = getHeader(event, 'content-type') || 'application/octet-stream'
   
   // MIME 类型白名单验证（可通过环境变量配置）
@@ -73,7 +89,7 @@ export default eventHandler(async (event) => {
   }
 
   try {
-    await storageProvider.create(key.replace(/^\/+/, ''), raw, contentType)
+    await storageProvider.create(normalizedKey, raw, contentType)
   } catch (error) {
     logger.chrono.error('Storage provider create error:', error)
     throw createError({

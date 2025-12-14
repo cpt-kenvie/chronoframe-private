@@ -1,5 +1,6 @@
 import { DEFAULT_SETTINGS } from '../services/settings/contants'
 import { settingsManager } from '../services/settings/settingsManager'
+import crypto from 'node:crypto'
 
 export default defineNitroPlugin(async (_nitroApp) => {
   const _settingsManager = settingsManager
@@ -15,10 +16,30 @@ export default defineNitroPlugin(async (_nitroApp) => {
     // Migrate existing configurations from runtimeConfig
     // Note: Storage manager will be initialized in the next plugin (2_storage.ts)
     await migrateRuntimeConfigToSettings()
+
+    await ensureDefaultStorageEncryptionKey()
   } finally {
     _settingsManager.setInitializingFlag(false)
   }
 })
+
+async function ensureDefaultStorageEncryptionKey() {
+  try {
+    const firstLaunch = await settingsManager.get<boolean>('system', 'firstLaunch')
+    if (!firstLaunch) return
+
+    const enabled = await settingsManager.get<boolean>('storage', 'encryption.enabled')
+    if (!enabled) return
+
+    const existingKey = (await settingsManager.get<string>('storage', 'encryption.key')) || ''
+    if (existingKey.trim()) return
+
+    const generated = crypto.randomBytes(32).toString('base64')
+    await settingsManager.set('storage', 'encryption.key', generated, undefined, true)
+  } catch (error) {
+    // ignore
+  }
+}
 
 /**
  * Migrate existing configurations from runtimeConfig to the settings system

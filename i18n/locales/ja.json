@@ -344,6 +344,18 @@
         "iccProfile": "ICC プロファイル",
         "uncalibrated": "未調整",
         "rgb": "RGB"
+      },
+      "encryption": {
+        "enabled": {
+          "label": "Encrypt Storage",
+          "description": "Encrypt files before storing them in the configured provider",
+          "help": "When enabled, uploads and generated thumbnails are stored encrypted; the app will decrypt when serving to users"
+        },
+        "key": {
+          "label": "Encryption Key",
+          "description": "Key used to encrypt/decrypt stored files",
+          "help": "Use a random 32-byte key (hex/base64) and keep it safe; changing it will make old encrypted files unreadable"
+        }
       }
     }
   },
@@ -999,6 +1011,18 @@
         "cdnUrl": {
           "label": "CDN URL",
           "description": "画像にアクセスするためのカスタム CDN URL"
+        }
+      },
+      "encryption": {
+        "enabled": {
+          "label": "Encrypt Storage",
+          "description": "Encrypt files before storing them in the configured provider",
+          "help": "When enabled, uploads and generated thumbnails are stored encrypted; the app will decrypt when serving to users"
+        },
+        "key": {
+          "label": "Encryption Key",
+          "description": "Key used to encrypt/decrypt stored files",
+          "help": "Use a random 32-byte key (hex/base64) and keep it safe; changing it will make old encrypted files unreadable"
         }
       }
     }
