@@ -216,6 +216,13 @@ export default defineNuxtConfig({
     },
   },
 
+  fonts: {
+    providers: {
+      google: false,
+      googleicons: false,
+    },
+  },
+
   ogImage: {
     fonts: ['Rubik:400', 'Rubik:700', 'Noto+Sans+SC:400', 'Noto+Sans+SC:700'],
   },
