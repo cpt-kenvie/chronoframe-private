@@ -120,17 +120,23 @@ export default eventHandler(async (event) => {
            ui: {
              type: 'custom',
              options: [
-               { 
-                 label: 'wizard.map.provider.mapbox.label', 
-                 value: 'mapbox', 
+               {
+                 label: 'wizard.map.provider.mapbox.label',
+                 value: 'mapbox',
                  icon: 'simple-icons:mapbox',
                  description: 'wizard.map.provider.mapbox.description'
                },
-               { 
-                 label: 'wizard.map.provider.maplibre.label', 
-                 value: 'maplibre', 
+               {
+                 label: 'wizard.map.provider.maplibre.label',
+                 value: 'maplibre',
                  icon: 'simple-icons:maplibre',
                  description: 'wizard.map.provider.maplibre.description'
+               },
+               {
+                 label: 'wizard.map.provider.amap.label',
+                 value: 'amap',
+                 icon: 'tabler:map-pin',
+                 description: 'wizard.map.provider.amap.description'
                },
              ]
            }

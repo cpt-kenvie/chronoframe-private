@@ -942,14 +942,19 @@
       },
       "amap": {
         "key": {
-          "label": "高德地图 API Key",
+          "label": "高德地图 JS API Key",
           "description": "高德地图 JS API Key",
-          "help": "请在高德开放平台申请 Web 端（JS API）密钥"
+          "help": "请在高德开放平台申请 Web 端（JS API）密钥，用于前端地图显示"
         },
         "securityCode": {
           "label": "高德地图安全密钥",
           "description": "高德地图安全密钥（可选）",
           "help": "用于提高 API 调用的安全性，可在高德开放平台配置"
+        },
+        "locationKey": {
+          "label": "高德 Web 服务 API Key",
+          "description": "高德 Web 服务 API Key（可选）",
+          "help": "用于后端地理编码服务，可与 JS API Key 相同或单独申请"
         }
       }
     },
@@ -1199,6 +1204,10 @@
         "maplibre": {
           "label": "MapLibre",
           "description": "Mapbox GL JS 的开源分支。"
+        },
+        "amap": {
+          "label": "高德地图",
+          "description": "适合中国地区使用的地图服务，支持中文地址解析。"
         }
       }
     }

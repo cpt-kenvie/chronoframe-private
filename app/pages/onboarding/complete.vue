@@ -13,13 +13,13 @@ async function onComplete() {
   loading.value = true
   try {
     // 1. Prepare Admin Data
-    const adminData = store.admin
+    const adminData = { ...unref(store.admin) }
 
     // 2. Prepare Site Data
-    const siteData = store.site
+    const siteData = { ...unref(store.site) }
 
     // 3. Prepare Storage Data
-    const storageState = store.storage
+    const storageState = { ...unref(store.storage) }
     const storageProvider = storageState.provider
     const storageConfig: Record<string, any> = { provider: storageProvider }
 
@@ -37,26 +37,37 @@ async function onComplete() {
     }
 
     // 4. Prepare Map Data
-    const mapState = store.map
+    const mapState = { ...unref(store.map) }
     const mapProvider = mapState.provider
-    const mapTokenKey = `${mapProvider}.token`
-    const mapStyleKey = `${mapProvider}.style`
 
-    const mapData = {
+    const mapData: Record<string, any> = {
       provider: mapProvider,
-      token: mapState[mapTokenKey],
-      style: mapState[mapStyleKey],
+    }
+
+    if (mapProvider === 'amap') {
+      mapData.token = mapState['amap.key']
+      mapData.securityCode = mapState['amap.securityCode']
+      mapData.locationKey = mapState['amap.locationKey']
+    } else {
+      const mapTokenKey = `${mapProvider}.token`
+      const mapStyleKey = `${mapProvider}.style`
+      mapData.token = mapState[mapTokenKey]
+      mapData.style = mapState[mapStyleKey]
     }
 
     // 5. Submit All
+    const submitData = {
+      admin: adminData,
+      site: siteData,
+      storage: storageData,
+      map: mapData,
+    }
+
+    console.log('Submitting wizard data:', JSON.stringify(submitData, null, 2))
+
     await $fetch('/api/wizard/submit', {
       method: 'POST',
-      body: {
-        admin: adminData,
-        site: siteData,
-        storage: storageData,
-        map: mapData,
-      },
+      body: submitData,
     })
 
     // Clear store

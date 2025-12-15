@@ -23,9 +23,11 @@ export default eventHandler(async (event) => {
         config: storageConfigSchema,
       }),
       map: z.object({
-        provider: z.enum(['mapbox', 'maplibre']),
+        provider: z.enum(['mapbox', 'maplibre', 'amap']),
         token: z.string().min(1),
         style: z.string().optional(),
+        securityCode: z.string().optional(),
+        locationKey: z.string().optional(),
       }),
     }).parse,
   )
@@ -81,9 +83,16 @@ export default eventHandler(async (event) => {
   if (body.map.provider === 'mapbox') {
     await settingsManager.set('map', 'mapbox.token', body.map.token)
     if (body.map.style) await settingsManager.set('map', 'mapbox.style', body.map.style)
-  } else {
+  } else if (body.map.provider === 'maplibre') {
     await settingsManager.set('map', 'maplibre.token', body.map.token)
     if (body.map.style) await settingsManager.set('map', 'maplibre.style', body.map.style)
+  } else if (body.map.provider === 'amap') {
+    await settingsManager.set('map', 'amap.key', body.map.token)
+    if (body.map.securityCode) await settingsManager.set('map', 'amap.securityCode', body.map.securityCode)
+    if (body.map.locationKey) {
+      await settingsManager.set('location', 'provider', 'amap')
+      await settingsManager.set('location', 'amap.key', body.map.locationKey)
+    }
   }
 
   // 5. Mark Complete

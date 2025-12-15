@@ -128,6 +128,15 @@ export const DEFAULT_SETTINGS = [
     description: 'settings.map.amap.securityCode.description',
     isPublic: true,
   },
+  {
+    namespace: 'map',
+    key: 'amap.locationKey',
+    type: 'string',
+    defaultValue: '',
+    label: 'settings.map.amap.locationKey.label',
+    description: 'settings.map.amap.locationKey.description',
+    isPublic: false,
+  },
   // NAMESPACE: location
   {
     namespace: 'location',

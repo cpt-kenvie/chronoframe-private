@@ -98,6 +98,12 @@ export const MAP_SETTINGS_UI: Record<string, FieldUIConfig> = {
     visibleIf: { fieldKey: 'provider', value: 'amap' },
     help: 'settings.map.amap.securityCode.help',
   },
+  'amap.locationKey': {
+    type: 'password',
+    placeholder: '请输入高德 Web 服务 API Key（可选）',
+    visibleIf: { fieldKey: 'provider', value: 'amap' },
+    help: 'settings.map.amap.locationKey.help',
+  },
 }
 
 export const LOCATION_SETTINGS_UI: Record<string, FieldUIConfig> = {

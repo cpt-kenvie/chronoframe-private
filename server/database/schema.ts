@@ -148,7 +148,7 @@ export const albums = sqliteTable('albums', {
   }),
   isHidden: integer('is_hidden', { mode: 'boolean' })
     .notNull()
-    .default(0),
+    .default(false),
   createdAt: integer('created_at', { mode: 'timestamp' })
     .notNull()
     .default(sql`(unixepoch())`),

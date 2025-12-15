@@ -71,6 +71,13 @@
       "when": 1762089381492,
       "tag": "0009_careful_ultragirl",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1765762689430,
+      "tag": "0010_public_jamie_braddock",
+      "breakpoints": true
     }
   ]
 }

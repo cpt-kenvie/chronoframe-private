@@ -923,9 +923,30 @@
           "label": "MapLibre Style",
           "description": "MapLibre map style URL"
         }
+      },
+      "amap": {
+        "key": {
+          "label": "AMap JS API Key",
+          "description": "AMap (Gaode) JS API Key",
+          "help": "Apply for Web (JS API) key from AMap Open Platform for frontend map display"
+        },
+        "securityCode": {
+          "label": "AMap Security Code",
+          "description": "AMap security code (optional)",
+          "help": "Used to enhance API call security, can be configured on AMap Open Platform"
+        },
+        "locationKey": {
+          "label": "AMap Web Service API Key",
+          "description": "AMap Web Service API Key (optional)",
+          "help": "Used for backend geocoding service, can be the same as JS API Key or separately applied"
+        }
       }
     },
     "location": {
+      "provider": {
+        "label": "Location Service Provider",
+        "description": "Select the reverse geocoding service provider"
+      },
       "mapbox": {
         "token": {
           "label": "Mapbox Token",
@@ -938,6 +959,13 @@
           "label": "Nominatim Base URL",
           "description": "Base URL for Nominatim reverse geocoding API",
           "help": "Leave empty to use the public Nominatim service by default"
+        }
+      },
+      "amap": {
+        "key": {
+          "label": "AMap API Key",
+          "description": "AMap Web Service API Key",
+          "help": "Apply for Web Service API key from AMap Open Platform for geocoding service"
         }
       }
     },
@@ -1088,6 +1116,10 @@
         "maplibre": {
           "label": "MapLibre",
           "description": "Open-source fork of Mapbox GL JS."
+        },
+        "amap": {
+          "label": "AMap (Gaode)",
+          "description": "Map service optimized for China with Chinese address support."
         }
       }
     }
