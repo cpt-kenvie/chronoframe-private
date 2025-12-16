@@ -34,11 +34,26 @@ const storageEncryptionFields = computed(() => {
   })
 })
 
+const storageUploadLimitField = computed(() => {
+  return storageFields.value.find((field) => field.key === 'upload.maxSizeMb')
+})
+
 const handleStorageEncryptionSubmit = async () => {
   try {
     await storageSubmit({
       'encryption.enabled': storageState['encryption.enabled'],
       'encryption.key': storageState['encryption.key'],
+    })
+  } catch {
+    /* empty */
+  }
+}
+
+const handleStorageUploadLimitSubmit = async () => {
+  if (!storageUploadLimitField.value) return
+  try {
+    await storageSubmit({
+      'upload.maxSizeMb': storageState['upload.maxSizeMb'],
     })
   } catch {
     /* empty */
@@ -586,6 +601,37 @@ const onStorageDelete = async (storageId: number) => {
 
     <template #body>
       <div class="space-y-6 max-w-6xl">
+        <UCard variant="outline">
+          <template #header>
+            <span>上传限制</span>
+          </template>
+
+          <UForm
+            id="storageUploadLimitForm"
+            class="space-y-4"
+            @submit="handleStorageUploadLimitSubmit"
+          >
+            <SettingField
+              v-if="storageUploadLimitField"
+              :field="storageUploadLimitField"
+              :model-value="storageState[storageUploadLimitField.key]"
+              @update:model-value="(val) => (storageState[storageUploadLimitField.key] = val)"
+            />
+          </UForm>
+
+          <template #footer>
+            <UButton
+              :loading="storageLoading"
+              type="submit"
+              form="storageUploadLimitForm"
+              variant="soft"
+              icon="tabler:device-floppy"
+            >
+              保存设置
+            </UButton>
+          </template>
+        </UCard>
+
         <UCard variant="outline">
           <template #header>
             <span>加密存储</span>

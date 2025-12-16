@@ -1,5 +1,6 @@
 import { useStorageProvider } from '~~/server/utils/useStorageProvider'
 import { logger } from '~~/server/utils/logger'
+import { settingsManager } from '~~/server/services/settings/settingsManager'
 
 export default eventHandler(async (event) => {
   await requireUserSession(event)
@@ -73,8 +74,10 @@ export default eventHandler(async (event) => {
     })
   }
   
-  // 简单大小限制（例如 512MB）
-  const maxBytes = 512 * 1024 * 1024
+  const maxSizeMb =
+    (await settingsManager.get<number>('storage', 'upload.maxSizeMb', 512)) ??
+    512
+  const maxBytes = maxSizeMb * 1024 * 1024
   if (raw.byteLength > maxBytes) {
     const sizeInMB = (raw.byteLength / 1024 / 1024).toFixed(2)
     throw createError({
@@ -83,7 +86,7 @@ export default eventHandler(async (event) => {
       data: {
         title: t('upload.error.tooLarge.title'),
         message: t('upload.error.tooLarge.message', { size: sizeInMB }),
-        suggestion: t('upload.error.tooLarge.suggestion', { maxSize: 512 }),
+        suggestion: t('upload.error.tooLarge.suggestion', { maxSize: maxSizeMb }),
       },
     })
   }

@@ -897,6 +897,13 @@
       }
     },
     "storage": {
+      "upload": {
+        "title": "上傳限制",
+        "maxSizeMb": {
+          "label": "上傳大小限制（MB）",
+          "description": "單次上傳檔案允許的最大大小（單位：MB）"
+        }
+      },
       "name": {
         "label": "配置名稱",
         "description": "儲存提供者配置的名稱"

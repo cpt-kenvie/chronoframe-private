@@ -901,6 +901,13 @@
       }
     },
     "storage": {
+      "upload": {
+        "title": "上載限制",
+        "maxSizeMb": {
+          "label": "上載大小限制（MB）",
+          "description": "單個上載檔案允許嘅最大大小（單位：MB）"
+        }
+      },
       "name": {
         "label": "配置名稱",
         "description": "儲存提供者配置嘅名稱"

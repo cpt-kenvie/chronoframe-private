@@ -981,6 +981,13 @@
       }
     },
     "storage": {
+      "upload": {
+        "title": "上传限制",
+        "maxSizeMb": {
+          "label": "上传大小限制（MB）",
+          "description": "单个上传文件允许的最大大小（单位：MB）"
+        }
+      },
       "name": {
         "label": "配置名称",
         "description": "存储提供者配置的名称"

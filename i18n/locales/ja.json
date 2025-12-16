@@ -901,6 +901,13 @@
       }
     },
     "storage": {
+      "upload": {
+        "title": "アップロード制限",
+        "maxSizeMb": {
+          "label": "アップロードサイズ上限（MB）",
+          "description": "単一アップロードで許可される最大サイズ（MB）"
+        }
+      },
       "name": {
         "label": "設定名",
         "description": "ストレージプロバイダー設定の名前"

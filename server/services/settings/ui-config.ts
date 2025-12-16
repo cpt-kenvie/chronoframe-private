@@ -429,6 +429,10 @@ export const STORAGE_SETTINGS_UI: Record<string, FieldUIConfig> = {
     help: 'settings.storage.openlist.pathField.description',
     visibleIf: { fieldKey: 'provider', value: 'openlist' }
   },
+  'upload.maxSizeMb': {
+    type: 'number',
+    placeholder: '512',
+  },
   'encryption.enabled': {
     // `UToggle` 在部分 Nuxt UI 版本/主题下可能不可用或不可见；
     // 这里改为 `UTabs`（关闭/开启）以保证一致可用的显示效果。

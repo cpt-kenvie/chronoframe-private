@@ -965,6 +965,13 @@
       }
     },
     "storage": {
+      "upload": {
+        "title": "Upload Limits",
+        "maxSizeMb": {
+          "label": "Max Upload Size (MB)",
+          "description": "Maximum size allowed for a single upload (in MB)"
+        }
+      },
       "name": {
         "label": "Provider Name",
         "description": "Name of the storage provider configuration"

@@ -192,6 +192,14 @@ export const DEFAULT_SETTINGS = [
     description: 'settings.storage.encryption.key.description',
     isSecret: true,
   },
+  {
+    namespace: 'storage',
+    key: 'upload.maxSizeMb',
+    type: 'number',
+    defaultValue: 512,
+    label: 'settings.storage.upload.maxSizeMb.label',
+    description: 'settings.storage.upload.maxSizeMb.description',
+  },
   // NAMESPACE: oauth
   {
     namespace: 'oauth',
