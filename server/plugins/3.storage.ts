@@ -50,10 +50,33 @@ export default nitroPlugin(async (nitroApp) => {
     storageConfiguration = activeProvider.config
   }
 
-  const storageManager = new StorageManager(
-    storageConfiguration,
-    logger.storage,
-  )
+  let storageManager: StorageManager
+  try {
+    storageManager = new StorageManager(
+      storageConfiguration,
+      logger.storage,
+    )
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    logger.storage.error(`Failed to initialize storage provider: ${errorMessage}`)
+
+    if (errorMessage.includes('accessKeyId') || errorMessage.includes('secretAccessKey')) {
+      logger.storage.warn('S3 配置缺失必需的 accessKeyId 或 secretAccessKey，回退到本地存储')
+    }
+
+    logger.storage.warn('Falling back to local storage due to configuration error')
+    storageConfiguration = {
+      provider: 'local',
+      basePath: path.resolve(process.cwd(), './data/storage'),
+      baseUrl: '/storage',
+      prefix: 'photos/',
+    } as LocalStorageConfig
+
+    storageManager = new StorageManager(
+      storageConfiguration,
+      logger.storage,
+    )
+  }
 
   // 设置全局实例
   setGlobalStorageManager(storageManager)
