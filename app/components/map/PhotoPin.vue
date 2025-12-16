@@ -135,21 +135,24 @@ const onClick = () => {
 
                 <!-- Single photo preview -->
                 <div class="relative h-36 overflow-hidden">
-                  <ThumbImage
-                    :src="marker.thumbnailUrl!"
-                    :alt="marker.title || `照片 ${marker.id}`"
-                    :thumbhash="marker.thumbnailHash"
-                    :threshold="0.1"
-                    root-margin="200px"
-                    class="w-full h-full object-cover"
-                  />
+                  <NuxtLink
+                    :to="`/${marker.id}`"
+                    class="block w-full h-full"
+                  >
+                    <ThumbImage
+                      :src="marker.thumbnailUrl!"
+                      :alt="marker.title || `照片 ${marker.id}`"
+                      :thumbhash="marker.thumbnailHash"
+                      :threshold="0.1"
+                      root-margin="200px"
+                      class="w-full h-full object-cover"
+                    />
+                  </NuxtLink>
                 </div>
                 <div class="relative px-3 py-2 space-y-1">
                   <!-- Header -->
                   <NuxtLink
                     :to="`/${marker.id}`"
-                    target="_blank"
-                    rel="noopener"
                     class="flex items-center gap-2 text-neutral-900 dark:text-white group/link"
                   >
                     <h3 class="flex-1 text-lg font-semibold truncate">

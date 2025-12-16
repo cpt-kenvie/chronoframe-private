@@ -166,8 +166,6 @@ const sizeDelta = computed(() => {
                       <NuxtLink
                         class="block w-full h-full"
                         :to="`/${photo.id}`"
-                        target="_blank"
-                        rel="noopener"
                       >
                         <ThumbImage
                           :src="photo.thumbnailUrl!"

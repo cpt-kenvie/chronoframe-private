@@ -91,20 +91,12 @@ const initMap = async () => {
 }
 
 watch(
-  () => props.center,
-  (newCenter) => {
-    if (mapInstance.value && newCenter) {
-      mapInstance.value.setCenter(newCenter)
-    }
-  },
-)
+  () => [props.center, props.zoom] as const,
+  ([center, zoom]) => {
+    if (!mapInstance.value) return
+    if (!center || zoom === undefined) return
 
-watch(
-  () => props.zoom,
-  (newZoom) => {
-    if (mapInstance.value && newZoom) {
-      mapInstance.value.setZoom(newZoom)
-    }
+    mapInstance.value.setZoomAndCenter(zoom, center, true, 0)
   },
 )
 

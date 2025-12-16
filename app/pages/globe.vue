@@ -26,6 +26,12 @@ const currentClusterPointId = ref<string | null>(null)
 const mapInstance = ref<any>(null)
 const currentZoom = ref<number>(4)
 const mapId = `globe-${Math.random().toString(36).slice(2)}`
+const viewportBounds = ref<{
+  west: number
+  south: number
+  east: number
+  north: number
+} | null>(null)
 
 const mapConfig = computed(() => {
   const config = getSetting('map')
@@ -34,10 +40,27 @@ const mapConfig = computed(() => {
 
 const provider = computed(() => mapConfig.value.provider || 'maplibre')
 
+const allMarkers = computed(() => {
+  return photosToMarkers(photosWithLocation.value, provider.value)
+})
+
+const visibleMarkers = computed(() => {
+  const bounds = viewportBounds.value
+  if (!bounds) return []
+
+  return allMarkers.value.filter((m) => {
+    return (
+      m.longitude >= bounds.west &&
+      m.longitude <= bounds.east &&
+      m.latitude >= bounds.south &&
+      m.latitude <= bounds.north
+    )
+  })
+})
+
 // Convert photos to markers and apply clustering
 const clusteredMarkers = computed(() => {
-  const markers = photosToMarkers(photosWithLocation.value, provider.value)
-  return clusterMarkers(markers, currentZoom.value)
+  return clusterMarkers(visibleMarkers.value, currentZoom.value)
 })
 
 // Separate clusters and single markers
@@ -163,6 +186,39 @@ const onMarkerPinClose = () => {
 const onMapLoaded = (map: any) => {
   mapInstance.value = map
 
+  const syncMapState = () => {
+    if (!mapInstance.value) return
+
+    currentZoom.value = mapInstance.value.getZoom()
+
+    if (provider.value === 'amap') {
+      const bounds = mapInstance.value.getBounds()
+      const sw = bounds.getSouthWest()
+      const ne = bounds.getNorthEast()
+      viewportBounds.value = {
+        west: sw.getLng(),
+        south: sw.getLat(),
+        east: ne.getLng(),
+        north: ne.getLat(),
+      }
+    } else {
+      const bounds = mapInstance.value.getBounds()
+      viewportBounds.value = {
+        west: bounds.getWest(),
+        south: bounds.getSouth(),
+        east: bounds.getEast(),
+        north: bounds.getNorth(),
+      }
+    }
+  }
+
+  const onMoveEnd = useThrottleFn(() => {
+    syncMapState()
+  }, 120)
+
+  syncMapState()
+  map.on('moveend', onMoveEnd)
+
   const { photoId } = route.query
   if (photoId && typeof photoId === 'string') {
     const photo = photosWithLocation.value.find((photo) => photo.id === photoId)
@@ -172,39 +228,48 @@ const onMapLoaded = (map: any) => {
         photo.latitude,
         provider.value,
       )
-      setTimeout(() => {
-        if (provider.value === 'amap') {
-          // AMap API
-          mapInstance.value.setZoomAndCenter(17, [lng, lat], false, 2000)
-        } else {
-          // Mapbox/MapLibre API
-          map.flyTo({
-            center: [lng, lat],
-            zoom: 17,
-            essential: true,
-            duration: 2000,
-          })
-        }
-        setTimeout(() => {
-          nextTick(() => {
-            currentClusterPointId.value = photoId
-          })
-        }, 2000)
-      }, 600)
+      if (provider.value === 'amap') {
+        mapInstance.value.setZoomAndCenter(17, [lng, lat], true, 0)
+      } else {
+        map.jumpTo({
+          center: [lng, lat],
+          zoom: 17,
+        })
+      }
+      syncMapState()
+      nextTick(() => {
+        currentClusterPointId.value = photoId
+      })
     }
   }
 
-  if (provider.value === 'amap') {
-    currentZoom.value = map.getZoom()
-  } else {
-    currentZoom.value = map.getZoom()
-  }
+  currentZoom.value = map.getZoom()
 }
 
 const onMapZoom = useThrottleFn(() => {
   if (!mapInstance.value) return
   currentZoom.value = mapInstance.value.getZoom()
-}, 100)
+
+  if (provider.value === 'amap') {
+    const bounds = mapInstance.value.getBounds()
+    const sw = bounds.getSouthWest()
+    const ne = bounds.getNorthEast()
+    viewportBounds.value = {
+      west: sw.getLng(),
+      south: sw.getLat(),
+      east: ne.getLng(),
+      north: ne.getLat(),
+    }
+  } else {
+    const bounds = mapInstance.value.getBounds()
+    viewportBounds.value = {
+      west: bounds.getWest(),
+      south: bounds.getSouth(),
+      east: bounds.getEast(),
+      north: bounds.getNorth(),
+    }
+  }
+}, 120)
 
 // Map control functions
 const zoomIn = () => {
@@ -236,8 +301,8 @@ const resetMap = () => {
     mapInstance.value.setZoomAndCenter(
       mapViewState.value.zoom,
       [mapViewState.value.longitude, mapViewState.value.latitude],
-      false,
-      1000,
+      true,
+      0,
     )
   } else {
     // Mapbox/MapLibre API

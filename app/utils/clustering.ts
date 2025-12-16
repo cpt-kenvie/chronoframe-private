@@ -7,19 +7,9 @@ export function clusterMarkers(
 ): ClusterPoint[] {
   if (markers.length === 0) return []
 
-  // At high zoom levels, don't cluster
-  if (zoom >= 15) {
-    return markers.map((marker) => ({
-      type: 'Feature' as const,
-      properties: { marker },
-      geometry: {
-        type: 'Point' as const,
-        coordinates: [marker.longitude, marker.latitude],
-      },
-    }))
-  }
-
-  const threshold = Math.max(0.001, 0.01 / Math.pow(2, zoom - 10))
+  const baseThreshold = Math.max(0.001, 0.01 / Math.pow(2, zoom - 10))
+  const loadFactor = Math.max(1, Math.sqrt(markers.length / 1200))
+  const threshold = baseThreshold * Math.min(8, loadFactor)
   const cellSize = threshold
 
   type WorkingCluster = {
