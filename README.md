@@ -98,7 +98,7 @@ docker run -d --name chronoframe --restart unless-stopped -p 3000:3000 --env-fil
 
 
 docker run -d --name chronoframe --restart unless-stopped -p 3000:3000 --env-file .env -v ./data:/app/data chronoframe:local
-docker run -d --name chronoframe --restart unless-stopped -p 3000:3000  -v ./data:/app/data chronoframe:local
+docker run -d --name chronoframe --restart unless-stopped -p 3000:3000  -v ./data:/app/data chronoframe:local1
 ```
 
 ## 🛠️ 本地开发

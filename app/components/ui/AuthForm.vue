@@ -29,7 +29,7 @@ const state = reactive<Partial<Schema>>({
 })
 
 const onSubmit = async (event: FormSubmitEvent<Schema>) => {
-  emit('submit', event)
+  emit('submit', { ...event, data: { ...event.data } })
 }
 </script>
 

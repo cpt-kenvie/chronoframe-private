@@ -1,4 +1,6 @@
 <script lang="ts" setup>
+import type { FormSubmitEvent } from '@nuxt/ui'
+
 useHead({
   title: $t('auth.form.signin.title'),
 })
@@ -11,29 +13,48 @@ const router = useRouter()
 
 const isLoading = ref(false)
 
-const onAuthSubmit = async (event: any) => {
+type LoginCredentials = {
+  email: string
+  password: string
+}
+
+const isLoginFetchError = (error: unknown): error is { data?: unknown } => {
+  return typeof error === 'object' && error !== null && 'data' in error
+}
+
+const hasMessage = (value: unknown): value is { message?: unknown } => {
+  return typeof value === 'object' && value !== null && 'message' in value
+}
+
+const onAuthSubmit = async (event: FormSubmitEvent<LoginCredentials>) => {
+  const body = { ...event.data }
   isLoading.value = true
-  await $fetch('/api/login', {
-    method: 'POST',
-    body: event.data,
-  })
-    .then(async () => {
-      await fetchUserSession()
-      router.push(route.query.redirect?.toString() || '/')
+  try {
+    await $fetch('/api/login', {
+      method: 'POST',
+      body,
     })
-    .catch((error) => {
-      console.error('Login error:', error)
-      toast.add({
-        color: 'error',
-        title: 'Login Failed',
-        description:
-          error?.data?.message ||
-          'An unexpected error occurred. Please try again.',
-      })
+
+    await fetchUserSession()
+    await router.push(route.query.redirect?.toString() || '/')
+  } catch (error) {
+    console.error('Login error:', error)
+
+    const description =
+      isLoginFetchError(error) &&
+      hasMessage(error.data) &&
+      typeof error.data.message === 'string'
+        ? error.data.message
+        : 'An unexpected error occurred. Please try again.'
+
+    toast.add({
+      color: 'error',
+      title: 'Login Failed',
+      description,
     })
-    .finally(() => {
-      isLoading.value = false
-    })
+  } finally {
+    isLoading.value = false
+  }
 }
 </script>
 
