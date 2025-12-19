@@ -13,5 +13,5 @@ services:
     env_file:
       - .env
     environment:
-      NUXT_SESSION_PASSWORD: ${NUXT_SESSION_PASSWORD:?NUXT_SESSION_PASSWORD is required (32+ chars)}
+      NUXT_SESSION_PASSWORD: ${NUXT_SESSION_PASSWORD}
 
