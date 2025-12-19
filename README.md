@@ -18,7 +18,12 @@
   - 上传组件支持选择目标相册
   - 上传前进行照片已存在检查，避免重复上传
   - 修复上传组件选择相册后无法正确添加照片的问题
+- **视频支持**
+  - 支持视频文件上传和管理
+  - 鼠标悬停自动播放视频预览
+  - 修复Live Photo分类bug
 - **系统设置** - 新增系统设置页面，方便配置管理
+- **国际化优化** - 完善中文翻译和i18n支持
 - **照片管理优化** - 优化照片管理和设置页面的交互体验
 
 ## ✨ 核心特性
@@ -37,18 +42,11 @@
 ### Docker（推荐）
 
 ```bash
-docker run -d --name chronoframe --restart unless-stopped -p 3000:3000 -v ./data:/app/data ghcr.io/kenv1e/chronoframe-private:latest
+docker run -d --name chronoframe --restart unless-stopped -p 3000:3000 -v ./data:/app/data kenv1e/chronoframe-private
 ```
 
 访问 `http://localhost:3000` 即可使用。
 
-也可以使用 GHCR 镜像：
-
-```bash
-docker run -d --name chronoframe --restart unless-stopped -p 3000:3000 -v ./data:/app/data ghcr.io/kenv1e/chronoframe-private:latest
-```
-
-> 如需自定义配置项，请参考原项目文档：https://chronoframe.bh8.ga/zh/guide/configuration.html
 
 ### Docker Compose
 
