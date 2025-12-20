@@ -1,3 +1,4 @@
+import crypto from 'node:crypto'
 import { z } from 'zod'
 import {
   settingKeys,
@@ -51,8 +52,52 @@ export default eventHandler(async (event) => {
     let successCount = 0
     const errors: Array<{ namespace: string; key: string; error: string }> = []
 
+    const updates = [...body.updates]
+    const encryptionEnabledUpdate = updates.find(
+      (u) =>
+        u.namespace === 'storage' &&
+        u.key === 'encryption.enabled' &&
+        Boolean(u.value) === true,
+    )
+
+    if (encryptionEnabledUpdate) {
+      const keyUpdate = updates.find(
+        (u) => u.namespace === 'storage' && u.key === 'encryption.key',
+      )
+
+      const providedKey =
+        typeof keyUpdate?.value === 'string' ? keyUpdate.value.trim() : ''
+      const existingKey = (await settingsManager.get<string>(
+        'storage',
+        'encryption.key',
+      ))?.trim() || ''
+
+      if (!providedKey && !existingKey) {
+        const generated = crypto.randomBytes(32).toString('base64')
+        if (keyUpdate) {
+          keyUpdate.value = generated
+        } else {
+          updates.unshift({
+            namespace: 'storage',
+            key: 'encryption.key',
+            value: generated,
+          })
+        }
+      }
+
+      updates.sort((a, b) => {
+        const weight = (u: { namespace: string; key: string }) => {
+          if (u.namespace !== 'storage') return 2
+          if (u.key === 'encryption.key') return 0
+          if (u.key === 'encryption.enabled') return 1
+          return 2
+        }
+        return weight(a) - weight(b)
+      })
+    }
+
     // 逐个更新设置
-    for (const update of body.updates) {
+    for (const update of updates) {
       try {
         await settingsManager.set(
           update.namespace,
