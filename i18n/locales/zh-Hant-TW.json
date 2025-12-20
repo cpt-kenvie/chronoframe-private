@@ -44,7 +44,9 @@
           "fileSizeDesc": "檔案大小（降冪）",
           "titleAsc": "標題（A-Z）",
           "titleDesc": "標題（Z-A）",
-          "shuffle": "打亂順序"
+          "shuffle": "打亂順序",
+          "formatAsc": "格式(A-Z)",
+          "formatDesc": "格式(Z-A)"
         },
         "title": "排序方式",
         "tooltip": "相片排序"
