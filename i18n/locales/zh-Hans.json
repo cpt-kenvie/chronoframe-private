@@ -701,7 +701,11 @@
           "noLocation": "未选择位置",
           "rating": "评分",
           "ratingHint": "点击星星为照片设置评分（0-5 星）。",
-          "noRating": "未评分"
+          "noRating": "未评分",
+          "panorama360": "360 全景",
+          "panorama360Hint": "开启后将按 360 全景方式展示（HDR/EXR 上传会自动开启）。",
+          "panorama360Yes": "是",
+          "panorama360No": "否"
         },
         "actions": {
           "cancel": "取消",

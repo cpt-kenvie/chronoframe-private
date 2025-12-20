@@ -649,7 +649,11 @@
           "noLocation": "未選擇位置",
           "rating": "評分",
           "ratingHint": "點擊星星為相片設定評分（0-5 星）。",
-          "noRating": "未評分"
+          "noRating": "未評分",
+          "panorama360": "360 全景",
+          "panorama360Hint": "開啟後將以 360 全景方式顯示（HDR/EXR 上傳會自動開啟）。",
+          "panorama360Yes": "是",
+          "panorama360No": "否"
         },
         "actions": {
           "cancel": "取消",

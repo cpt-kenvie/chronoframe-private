@@ -1,4 +1,5 @@
 import type { PanoramaFormat } from './types'
+import type { NeededExif } from '~~/shared/types/photo'
 
 const normalizeExt = (name: string): string => {
   const idx = name.lastIndexOf('.')
@@ -34,5 +35,14 @@ export const getPanoramaFormatFromStorageKey = (
 ): PanoramaFormat | null => {
   if (!storageKey) return null
   return getPanoramaFormatFromName(storageKey)
+}
+
+export const isPanoramaByXmp = (exif?: NeededExif | null): boolean => {
+  if (!exif) return false
+  if (exif.PanoramaDetected) return true
+  if (exif.GPanoUsePanoramaViewer) return true
+  if (exif.GPanoProjectionType?.toLowerCase() === 'equirectangular') return true
+  if (exif.GPanoFullPanoWidthPixels && exif.GPanoFullPanoHeightPixels) return true
+  return false
 }
 

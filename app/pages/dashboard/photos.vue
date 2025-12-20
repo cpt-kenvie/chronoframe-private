@@ -148,6 +148,7 @@ interface EditFormState {
   description: string
   tags: string[]
   rating: number | null
+  isPanorama360: boolean
 }
 
 const editingPhoto = ref<Photo | null>(null)
@@ -159,6 +160,7 @@ const editFormState = reactive<EditFormState>({
   description: '',
   tags: [],
   rating: null,
+  isPanorama360: false,
 })
 
 const originalMetadata = ref<{
@@ -167,12 +169,14 @@ const originalMetadata = ref<{
   tags: string[]
   location: { latitude: number; longitude: number } | null
   rating: number | null
+  isPanorama360: boolean
 }>({
   title: '',
   description: '',
   tags: [],
   location: null,
   rating: null,
+  isPanorama360: false,
 })
 
 const locationSelection = ref<{ latitude: number; longitude: number } | null>(
@@ -249,13 +253,18 @@ const ratingChanged = computed(
   () => editFormState.rating !== originalMetadata.value.rating,
 )
 
+const panoramaChanged = computed(() => {
+  return editFormState.isPanorama360 !== originalMetadata.value.isPanorama360
+})
+
 const isMetadataDirty = computed(
   () =>
     titleChanged.value ||
     descriptionChanged.value ||
     tagsChanged.value ||
     locationChanged.value ||
-    ratingChanged.value,
+    ratingChanged.value ||
+    panoramaChanged.value,
 )
 
 const formattedCoordinates = computed(() => {
@@ -1616,6 +1625,9 @@ const openMetadataEditor = (photo: Photo) => {
   const initialTags = normalizeTagList(photo.tags ?? [])
   const hasCoordinates =
     typeof photo.latitude === 'number' && typeof photo.longitude === 'number'
+  const initialPanorama360 =
+    photo.isPanorama360 === 1 ||
+    getPanoramaFormatFromStorageKey(photo.storageKey) !== null
 
   editingPhoto.value = photo
   editFormState.title = initialTitle
@@ -1623,6 +1635,7 @@ const openMetadataEditor = (photo: Photo) => {
   editFormState.tags = [...initialTags]
   editFormState.rating =
     typeof photo.exif?.Rating === 'number' ? photo.exif.Rating : null
+  editFormState.isPanorama360 = initialPanorama360
 
   const initialLocation = hasCoordinates
     ? {
@@ -1637,6 +1650,7 @@ const openMetadataEditor = (photo: Photo) => {
     tags: [...initialTags],
     location: initialLocation ? { ...initialLocation } : null,
     rating: typeof photo.exif?.Rating === 'number' ? photo.exif.Rating : null,
+    isPanorama360: initialPanorama360,
   }
 
   locationSelection.value = initialLocation ? { ...initialLocation } : null
@@ -1667,6 +1681,7 @@ const saveMetadataChanges = async () => {
       tags?: string[]
       location?: { latitude: number; longitude: number } | null
       rating?: number | null
+      isPanorama360?: boolean
     } = {}
 
     if (titleChanged.value) {
@@ -1692,6 +1707,10 @@ const saveMetadataChanges = async () => {
 
     if (ratingChanged.value) {
       payload.rating = editFormState.rating
+    }
+
+    if (panoramaChanged.value) {
+      payload.isPanorama360 = editFormState.isPanorama360
     }
 
     if (Object.keys(payload).length === 0) {
@@ -3007,6 +3026,34 @@ onUnmounted(() => {
                   </UFormField>
                   <p class="text-xs text-neutral-500 dark:text-neutral-400">
                     {{ $t('dashboard.photos.editModal.fields.tagsHint') }}
+                  </p>
+                </div>
+
+                <div class="space-y-2">
+                  <UFormField
+                    :label="$t('dashboard.photos.editModal.fields.panorama360')"
+                    name="isPanorama360"
+                  >
+                    <div class="flex items-center justify-between gap-3">
+                      <span class="text-sm text-neutral-600 dark:text-neutral-400">
+                        {{
+                          editFormState.isPanorama360
+                            ? $t('dashboard.photos.editModal.fields.panorama360Yes')
+                            : $t('dashboard.photos.editModal.fields.panorama360No')
+                        }}
+                      </span>
+                      <UCheckbox
+                        :model-value="editFormState.isPanorama360"
+                        @update:model-value="
+                          (value: boolean) => {
+                            editFormState.isPanorama360 = value
+                          }
+                        "
+                      />
+                    </div>
+                  </UFormField>
+                  <p class="text-xs text-neutral-500 dark:text-neutral-400">
+                    {{ $t('dashboard.photos.editModal.fields.panorama360Hint') }}
                   </p>
                 </div>
 

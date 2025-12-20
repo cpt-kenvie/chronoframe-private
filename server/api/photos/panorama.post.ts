@@ -60,6 +60,7 @@ export default defineEventHandler(async (event) => {
     isLivePhoto: 0,
     livePhotoVideoUrl: null,
     livePhotoVideoKey: null,
+    isPanorama360: 1,
     isVideo: 0,
     duration: null,
     videoCodec: null,

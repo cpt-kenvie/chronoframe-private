@@ -63,22 +63,22 @@ export interface NeededExif {
   ImageWidth?: number
   ImageHeight?: number
 
-  MeteringMode: Tags['MeteringMode']
-  WhiteBalance: Tags['WhiteBalance']
-  WBShiftAB: Tags['WBShiftAB']
-  WBShiftGM: Tags['WBShiftGM']
-  WhiteBalanceBias: Tags['WhiteBalanceBias']
-  WhiteBalanceFineTune: Tags['WhiteBalanceFineTune']
-  FlashMeteringMode: Tags['FlashMeteringMode']
-  SensingMethod: Tags['SensingMethod']
-  FocalPlaneXResolution: Tags['FocalPlaneXResolution']
-  FocalPlaneYResolution: Tags['FocalPlaneYResolution']
-  GPSAltitude: Tags['GPSAltitude']
-  GPSLatitude: Tags['GPSLatitude']
-  GPSLongitude: Tags['GPSLongitude']
-  GPSAltitudeRef: Tags['GPSAltitudeRef']
-  GPSLatitudeRef: Tags['GPSLatitudeRef']
-  GPSLongitudeRef: Tags['GPSLongitudeRef']
+  MeteringMode?: Tags['MeteringMode']
+  WhiteBalance?: Tags['WhiteBalance']
+  WBShiftAB?: Tags['WBShiftAB']
+  WBShiftGM?: Tags['WBShiftGM']
+  WhiteBalanceBias?: Tags['WhiteBalanceBias']
+  WhiteBalanceFineTune?: Tags['WhiteBalanceFineTune']
+  FlashMeteringMode?: Tags['FlashMeteringMode']
+  SensingMethod?: Tags['SensingMethod']
+  FocalPlaneXResolution?: Tags['FocalPlaneXResolution']
+  FocalPlaneYResolution?: Tags['FocalPlaneYResolution']
+  GPSAltitude?: Tags['GPSAltitude']
+  GPSLatitude?: Tags['GPSLatitude']
+  GPSLongitude?: Tags['GPSLongitude']
+  GPSAltitudeRef?: Tags['GPSAltitudeRef']
+  GPSLatitudeRef?: Tags['GPSLatitudeRef']
+  GPSLongitudeRef?: Tags['GPSLongitudeRef']
 
   // HDR Type
   MPImageType?: Tags['MPImageType']
@@ -93,6 +93,20 @@ export interface NeededExif {
   MicroVideoVersion?: Tags['MicroVideoVersion']
   MicroVideoOffset?: Tags['MicroVideoOffset']
   MicroVideoPresentationTimestampUs?: Tags['MicroVideoPresentationTimestampUs']
+
+  // Panorama (XMP-GPano) related fields
+  GPanoUsePanoramaViewer?: boolean
+  GPanoProjectionType?: string
+  GPanoFullPanoWidthPixels?: number
+  GPanoFullPanoHeightPixels?: number
+  GPanoCroppedAreaImageWidthPixels?: number
+  GPanoCroppedAreaImageHeightPixels?: number
+  GPanoCroppedAreaLeftPixels?: number
+  GPanoCroppedAreaTopPixels?: number
+  PanoramaDetected?: boolean
+  PanoramaConfidence?: number
+  PanoramaDetectionMethod?: 'xmp' | 'ratio+seam' | 'ratio' | 'none'
+  PanoramaSeamSimilarity?: number
 }
 
 export interface PhotoInfo {

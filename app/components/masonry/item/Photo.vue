@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { formatCameraInfo } from '~/utils/camera'
 import { motion, useDomRef } from 'motion-v'
-import { getPanoramaFormatFromStorageKey } from '~/libs/panorama/format'
+import { getPanoramaFormatFromStorageKey, isPanoramaByXmp } from '~/libs/panorama/format'
 
 interface Props {
   photo: Photo
@@ -48,6 +48,12 @@ const processingState = getProcessingState(props.photo.id)
 
 const panoramaFormat = computed(() => {
   return getPanoramaFormatFromStorageKey(props.photo.storageKey)
+})
+
+const panoramaBadge = computed(() => {
+  if (panoramaFormat.value) return panoramaFormat.value.toUpperCase()
+  if (props.photo.isPanorama360 === 1 || isPanoramaByXmp(props.photo.exif)) return '360'
+  return null
 })
 
 const aspectRatio = computed(() => {
@@ -638,14 +644,14 @@ onUnmounted(() => {
         />
 
         <div
-          v-if="!photo.isVideo && panoramaFormat"
+          v-if="!photo.isVideo && panoramaBadge"
           class="absolute top-2 right-2 px-2 py-1 bg-black/60 backdrop-blur-sm rounded flex items-center gap-1 text-white text-[10px] font-medium"
         >
           <Icon
             name="tabler:sphere"
             class="w-3 h-3"
           />
-          <span class="uppercase">{{ panoramaFormat }}</span>
+          <span>{{ panoramaBadge }}</span>
         </div>
 
         <!-- Video indicator for video files -->

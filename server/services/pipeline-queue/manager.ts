@@ -13,6 +13,7 @@ import {
 } from '../image/processor'
 import { generateThumbnailAndHash } from '../image/thumbnail'
 import { extractExifData, extractPhotoInfo } from '../image/exif'
+import { detectPanoramaExifPatch } from '../image/panorama'
 import {
   extractLocationFromGPS,
   parseGPSCoordinates,
@@ -339,7 +340,19 @@ export class QueueManager {
           )
 
           // 提取照片基本信息
-          const photoInfo = extractPhotoInfo(storageKey, exifData)
+          const panoramaExifPatch = await detectPanoramaExifPatch({
+            rawImageBuffer: imageBuffers.raw,
+            processedImageBuffer: imageBuffer,
+            width: metadata.width,
+            height: metadata.height,
+          })
+
+          const mergedExif =
+            exifData || Object.keys(panoramaExifPatch).length > 0
+              ? { ...(exifData ?? {}), ...panoramaExifPatch }
+              : null
+
+          const photoInfo = extractPhotoInfo(storageKey, mergedExif)
 
           // STEP 5: 地理位置反向解析
           // 这里逆编码失败不报错，宽容处理
@@ -348,8 +361,8 @@ export class QueueManager {
 
           let coordinates = null
           let locationInfo = null
-          if (exifData) {
-            const { latitude, longitude } = parseGPSCoordinates(exifData)
+          if (mergedExif) {
+            const { latitude, longitude } = parseGPSCoordinates(mergedExif)
             coordinates = { latitude, longitude }
             if (latitude && longitude) {
               locationInfo = await extractLocationFromGPS(latitude, longitude)
@@ -364,7 +377,7 @@ export class QueueManager {
                 photoId,
                 storageKey,
                 rawImageBuffer: imageBuffers.raw,
-                exifData,
+                exifData: mergedExif,
                 storageProvider,
                 logger: this.logger,
               })
@@ -401,6 +414,17 @@ export class QueueManager {
           }
 
           // 构建最终的 Photo 对象
+          const db = useDB()
+          const existingPanorama = await db
+            .select({ isPanorama360: tables.photos.isPanorama360 })
+            .from(tables.photos)
+            .where(eq(tables.photos.id, photoId))
+            .get()
+
+          const detectedPanorama360 = mergedExif?.PanoramaDetected ? 1 : 0
+          const isPanorama360 =
+            existingPanorama?.isPanorama360 === 1 ? 1 : detectedPanorama360
+
           const result: Photo = {
             id: photoId,
             title: photoInfo.title,
@@ -422,7 +446,7 @@ export class QueueManager {
             thumbnailHash: thumbnailHash
               ? compressUint8Array(thumbnailHash)
               : null,
-            exif: exifData,
+            exif: mergedExif,
             // 地理位置信息
             latitude: coordinates?.latitude || null,
             longitude: coordinates?.longitude || null,
@@ -439,6 +463,7 @@ export class QueueManager {
             livePhotoVideoKey: motionPhotoInfo?.livePhotoVideoKey ||
               livePhotoInfo?.livePhotoVideoKey ||
               null,
+            isPanorama360,
             duration: null,
             isVideo: 0,
             videoCodec: null,
@@ -446,8 +471,6 @@ export class QueueManager {
             bitrate: null,
             frameRate: null
           }
-
-          const db = useDB()
           await db.insert(tables.photos).values(result).onConflictDoUpdate({
             target: tables.photos.id,
             set: result,
@@ -830,6 +853,7 @@ export class QueueManager {
             isLivePhoto: 0,
             livePhotoVideoUrl: null,
             livePhotoVideoKey: null,
+            isPanorama360: 0,
             isVideo: 1,
             duration: metadata.duration,
             videoCodec: metadata.videoCodec,

@@ -72,6 +72,7 @@ export const photos = sqliteTable('photos', {
   isLivePhoto: integer('is_live_photo').default(0).notNull(),
   livePhotoVideoUrl: text('live_photo_video_url'),
   livePhotoVideoKey: text('live_photo_video_key'),
+  isPanorama360: integer('is_panorama_360').default(0).notNull(),
   // 视频相关字段
   isVideo: integer('is_video').default(0).notNull(),
   duration: real('duration'),

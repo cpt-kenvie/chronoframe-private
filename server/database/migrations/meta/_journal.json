@@ -78,6 +78,13 @@
       "when": 1765762689430,
       "tag": "0010_public_jamie_braddock",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1766239200000,
+      "tag": "0011_add_panorama_360_flag",
+      "breakpoints": true
     }
   ]
 }

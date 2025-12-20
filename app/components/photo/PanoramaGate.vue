@@ -24,8 +24,12 @@ const panoramaFormat = computed(() => {
   return getPanoramaFormatFromStorageKey(props.photo.storageKey)
 })
 
+const isPanorama = computed(() => {
+  return panoramaFormat.value !== null || props.photo.isPanorama360 === 1
+})
+
 const enter = () => {
-  if (!panoramaFormat.value) return
+  if (!isPanorama.value) return
   emit('update:open', true)
 }
 
@@ -54,7 +58,7 @@ const exit = () => {
           size="lg"
           icon="tabler:sphere"
           class="shadow-2xl"
-          :disabled="!panoramaFormat"
+          :disabled="!isPanorama"
           @click="enter"
         >
           进入全景预览
@@ -63,7 +67,7 @@ const exit = () => {
     </div>
 
     <PanoramaFullscreen
-      v-else-if="panoramaFormat"
+      v-else-if="isPanorama"
       :photo="photo"
       :open="open"
       @close="exit"

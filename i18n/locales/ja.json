@@ -649,7 +649,11 @@
           "noLocation": "位置情報が未設定です",
           "rating": "評価",
           "ratingHint": "星をクリックして写真の評価を設定します（0～5つ星）。",
-          "noRating": "未評価"
+          "noRating": "未評価",
+          "panorama360": "360°パノラマ",
+          "panorama360Hint": "有効にすると 360°パノラマとして表示します（HDR/EXR のアップロード時は自動で有効）。",
+          "panorama360Yes": "はい",
+          "panorama360No": "いいえ"
         },
         "actions": {
           "cancel": "キャンセル",

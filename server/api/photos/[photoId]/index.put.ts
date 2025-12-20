@@ -10,6 +10,7 @@ import { tables, useDB } from '~~/server/utils/db'
 import { useStorageProvider } from '~~/server/utils/useStorageProvider'
 import { isStorageEncryptionEnabled, resolveOriginalKeyForPhoto, toFileProxyUrl } from '~~/server/utils/publicFile'
 import { safeUseTranslation } from '~~/server/utils/i18n'
+import type { NeededExif } from '~~/shared/types/photo'
 
 
 const paramsSchema = z.object({
@@ -30,6 +31,7 @@ const bodySchema = z.object({
     ])
     .optional(),
   rating: z.union([z.number().int().min(0).max(5), z.null()]).optional(),
+  isPanorama360: z.boolean().optional(),
 })
 
 const normalizeTags = (tags: string[] | undefined) => {
@@ -59,7 +61,8 @@ export default eventHandler(async (event) => {
     payload.description === undefined &&
     payload.tags === undefined &&
     payload.location === undefined &&
-    payload.rating === undefined
+    payload.rating === undefined &&
+    payload.isPanorama360 === undefined
   ) {
     throw createError({
       statusCode: 400,
@@ -94,6 +97,46 @@ export default eventHandler(async (event) => {
     if (!key) return null
     return encryptionEnabled ? toFileProxyUrl(key) : storageProvider.getPublicUrl(key)
   }
+
+  const withUrls = (row: typeof tables.photos.$inferSelect) => {
+    const originalKey = resolveOriginalKeyForPhoto(row.storageKey) || row.storageKey
+    return {
+      ...row,
+      originalUrl: toUrl(originalKey),
+      thumbnailUrl: toUrl(row.thumbnailKey),
+      livePhotoVideoUrl: toUrl(row.livePhotoVideoKey),
+    }
+  }
+
+  const onlyPanoramaFlagUpdate =
+    payload.isPanorama360 !== undefined &&
+    payload.title === undefined &&
+    payload.description === undefined &&
+    payload.tags === undefined &&
+    payload.location === undefined &&
+    payload.rating === undefined
+
+  if (onlyPanoramaFlagUpdate) {
+    await db
+      .update(tables.photos)
+      .set({
+        isPanorama360: payload.isPanorama360 ? 1 : 0,
+        lastModified: new Date().toISOString(),
+      })
+      .where(eq(tables.photos.id, photoId))
+
+    const updated = await db
+      .select()
+      .from(tables.photos)
+      .where(eq(tables.photos.id, photoId))
+      .get()
+
+    return {
+      success: true,
+      photo: updated ? withUrls(updated) : null,
+    }
+  }
+
   const originalBuffer = await storageProvider.get(photo.storageKey)
 
   if (!originalBuffer) {
@@ -162,6 +205,33 @@ export default eventHandler(async (event) => {
     exifUpdates.Rating = payload.rating !== null ? payload.rating : null
   }
 
+  const preservePanoramaExif = (exif: NeededExif | null | undefined) => {
+    if (!exif) return {}
+    const keys: Array<keyof NeededExif> = [
+      'GPanoUsePanoramaViewer',
+      'GPanoProjectionType',
+      'GPanoFullPanoWidthPixels',
+      'GPanoFullPanoHeightPixels',
+      'GPanoCroppedAreaImageWidthPixels',
+      'GPanoCroppedAreaImageHeightPixels',
+      'GPanoCroppedAreaLeftPixels',
+      'GPanoCroppedAreaTopPixels',
+      'PanoramaDetected',
+      'PanoramaConfidence',
+      'PanoramaDetectionMethod',
+      'PanoramaSeamSimilarity',
+    ]
+
+    const out: Partial<NeededExif> = {}
+    for (const key of keys) {
+      const value = exif[key]
+      if (value !== undefined) {
+        out[key] = value
+      }
+    }
+    return out
+  }
+
   const tempDir = await mkdtemp(path.join(tmpdir(), 'cframe-edit-'))
   const ext = path.extname(photo.storageKey) || '.jpg'
   const tempFile = path.join(tempDir, `edited${ext}`)
@@ -184,11 +254,20 @@ export default eventHandler(async (event) => {
     )
 
     const exifData = await extractExifData(updatedBuffer)
+    const panoramaExif = preservePanoramaExif(photo.exif)
+    const mergedExif =
+      exifData || Object.keys(panoramaExif).length > 0
+        ? { ...(exifData ?? {}), ...panoramaExif }
+        : null
 
     const updateData: Record<string, any> = {
-      exif: exifData,
+      exif: mergedExif,
       fileSize: updatedBuffer.length,
       lastModified: new Date().toISOString(),
+    }
+
+    if (payload.isPanorama360 !== undefined) {
+      updateData.isPanorama360 = payload.isPanorama360 ? 1 : 0
     }
 
     if (normalizedTitle !== undefined) {
@@ -234,15 +313,6 @@ export default eventHandler(async (event) => {
       .where(eq(tables.photos.id, photoId))
       .get()
 
-    if (updatedPhoto) {
-      const originalKey =
-        resolveOriginalKeyForPhoto(updatedPhoto.storageKey) ||
-        updatedPhoto.storageKey
-      ;(updatedPhoto as any).originalUrl = toUrl(originalKey)
-      ;(updatedPhoto as any).thumbnailUrl = toUrl(updatedPhoto.thumbnailKey)
-      ;(updatedPhoto as any).livePhotoVideoUrl = toUrl(updatedPhoto.livePhotoVideoKey)
-    }
-
     if (pendingReverseGeocode) {
       const workerPool = globalThis.__workerPool
       if (workerPool) {
@@ -273,7 +343,7 @@ export default eventHandler(async (event) => {
 
     return {
       success: true,
-      photo: updatedPhoto,
+      photo: updatedPhoto ? withUrls(updatedPhoto) : null,
     }
   } catch (error) {
     logger.image.error('Failed to update photo metadata', error)

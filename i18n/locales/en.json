@@ -701,7 +701,11 @@
           "noLocation": "No location selected",
           "rating": "Rating",
           "ratingHint": "Click on the stars to set the photo rating (0-5 stars).",
-          "noRating": "No rating"
+          "noRating": "No rating",
+          "panorama360": "360 panorama",
+          "panorama360Hint": "If enabled, this photo will be treated as a 360 panorama (auto-enabled for HDR/EXR uploads).",
+          "panorama360Yes": "Yes",
+          "panorama360No": "No"
         },
         "actions": {
           "cancel": "Cancel",

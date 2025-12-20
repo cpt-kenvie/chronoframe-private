@@ -105,7 +105,10 @@ const isMobile = useMediaQuery('(max-width: 768px)')
 const panoramaPreviewPhotoId = ref<string | null>(null)
 
 const isPanoramaPhoto = (photo: Photo) => {
-  return getPanoramaFormatFromStorageKey(photo.storageKey) !== null
+  return (
+    getPanoramaFormatFromStorageKey(photo.storageKey) !== null ||
+    photo.isPanorama360 === 1
+  )
 }
 
 // LivePhoto processing state

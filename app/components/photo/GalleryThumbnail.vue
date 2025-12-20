@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { motion } from 'motion-v'
-import { getPanoramaFormatFromStorageKey } from '~/libs/panorama/format'
+import { getPanoramaFormatFromStorageKey, isPanoramaByXmp } from '~/libs/panorama/format'
 
 interface Props {
   photos: Photo[]
@@ -49,6 +49,8 @@ const thumbnailList = computed(() => {
     index,
     isActive: index === props.currentIndex,
     panoramaFormat: getPanoramaFormatFromStorageKey(photo.storageKey),
+    panoramaXmp: isPanoramaByXmp(photo.exif),
+    panorama360: photo.isPanorama360 === 1,
   }))
 })
 
@@ -208,9 +210,9 @@ watch(isMobile, scrollToActiveThumbnail)
         </div>
 
         <div
-          v-else-if="photo.panoramaFormat"
+          v-else-if="photo.panoramaFormat || photo.panorama360 || photo.panoramaXmp"
           class="absolute bottom-1 right-1 bg-black/60 backdrop-blur-sm rounded-full p-1 flex items-center justify-center"
-          :title="`Panorama (${photo.panoramaFormat.toUpperCase()})`"
+          :title="photo.panoramaFormat ? `Panorama (${photo.panoramaFormat.toUpperCase()})` : 'Panorama'"
         >
           <Icon
             name="tabler:sphere"

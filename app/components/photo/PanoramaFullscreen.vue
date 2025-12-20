@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { LoadingIndicatorRef } from './LoadingIndicator.vue'
 import PanoramaViewer from './PanoramaViewer.vue'
+import PanoramaImageViewer from './PanoramaImageViewer.vue'
 import { getPanoramaFormatFromStorageKey } from '~/libs/panorama/format'
 import type { PanoramaFormat } from '~/libs/panorama/types'
 import type { DisplayPhoto } from '~/libs/panorama/photo-variants'
@@ -29,6 +30,10 @@ const loadingBridge: LoadingIndicatorRef = {
 
 const panoramaFormat = computed(() => {
   return getPanoramaFormatFromStorageKey(props.photo.storageKey)
+})
+
+const isPanorama360 = computed(() => {
+  return props.photo.isPanorama360 === 1
 })
 
 const sourcesByFormat = computed(() => {
@@ -103,16 +108,27 @@ onUnmounted(() => {
 <template>
   <Teleport to="body">
     <div
-      v-if="open && panoramaFormat"
+      v-if="open && (panoramaFormat || isPanorama360)"
       class="fixed inset-0 z-[9999] bg-black"
     >
       <div class="relative w-full h-full">
         <PanoramaViewer
+          v-if="panoramaFormat"
           :src="activePhoto.originalUrl || ''"
           :format="activeFormatNonNull"
           :thumbnail-src="activePhoto.thumbnailUrl || ''"
           :thumbhash="activePhoto.thumbnailHash"
           :alt="activePhoto.title || activePhoto.id"
+          :is-current-image="true"
+          :loading-indicator-ref="loadingBridge"
+        />
+
+        <PanoramaImageViewer
+          v-else
+          :src="props.photo.originalUrl || ''"
+          :thumbnail-src="props.photo.thumbnailUrl || ''"
+          :thumbhash="props.photo.thumbnailHash"
+          :alt="props.photo.title || props.photo.id"
           :is-current-image="true"
           :loading-indicator-ref="loadingBridge"
         />
