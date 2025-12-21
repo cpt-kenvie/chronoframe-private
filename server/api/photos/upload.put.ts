@@ -3,6 +3,7 @@ import { useStorageProvider } from '~~/server/utils/useStorageProvider'
 import { logger } from '~~/server/utils/logger'
 import { settingsManager } from '~~/server/services/settings/settingsManager'
 import { safeUseTranslation } from '~~/server/utils/i18n'
+import { isStorageProviderError } from '~~/server/services/storage/errors'
 
 export default eventHandler(async (event) => {
   await requireUserSession(event)
@@ -178,6 +179,21 @@ export default eventHandler(async (event) => {
     )
   } catch (error) {
     logger.chrono.error('Storage provider create error:', error)
+
+    if (isStorageProviderError(error) && error.statusCode === 413) {
+      const sizeInMB = ((contentLength ?? bytesReceived) / 1024 / 1024).toFixed(2)
+      throw createError({
+        statusCode: 413,
+        statusMessage: t('upload.error.tooLarge.title'),
+        data: {
+          title: t('upload.error.tooLarge.title'),
+          message: t('upload.error.tooLarge.message', { size: sizeInMB }),
+          suggestion:
+            'OpenList/nginx rejected the upload (413). Increase the upstream upload limit (e.g. client_max_body_size) or upload a smaller file.',
+        },
+      })
+    }
+
     throw createError({
       statusCode: 500,
       statusMessage: t('upload.error.uploadFailed.title'),

@@ -32,7 +32,7 @@ export class StorageProviderFactory {
       case 'local':
         return wrap(new LocalStorageProvider(config, logger))
       case 'openlist':
-        return wrap(new OpenListStorageProvider(config as any, logger))
+        return wrap(new OpenListStorageProvider(config, logger))
       default:
         throw new Error(`Unknown storage provider`)
     }

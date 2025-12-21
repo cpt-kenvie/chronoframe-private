@@ -1,5 +1,8 @@
 import type { Logger } from '../../../utils/logger'
 import type { StorageProvider, StorageObject } from '../interfaces'
+import type { OpenListStorageConfig } from '..'
+import { Readable } from 'node:stream'
+import { StorageProviderError } from '../errors'
 
 /**
  * OpenListStorageProvider implements StorageProvider for OpenList API.
@@ -36,10 +39,8 @@ export class OpenListStorageProvider implements StorageProvider {
   private async request(path: string, init: RequestInit = {}): Promise<Response> {
     const token = await this.ensureAuthToken()
     const url = `${this.baseUrl}${path}`
-    const headers: Record<string, string> = {
-      ...(init.headers as Record<string, string> | undefined),
-      Authorization: token,
-    }
+    const headers = new Headers(init.headers)
+    headers.set('Authorization', token)
     return fetch(url, { ...init, headers })
   }
 
@@ -66,6 +67,65 @@ export class OpenListStorageProvider implements StorageProvider {
     return key.startsWith('/') ? key : `/${key}`
   }
 
+  private encodeUrlPath(key: string): string {
+    return key
+      .split('/')
+      .filter(Boolean)
+      .map((seg) => encodeURIComponent(seg))
+      .join('/')
+  }
+
+  private async sleep(ms: number): Promise<void> {
+    await new Promise<void>((resolve) => setTimeout(resolve, ms))
+  }
+
+  private async waitForMeta(key: string): Promise<(StorageObject & { rawUrl?: string }) | null> {
+    const delaysMs = [0, 100, 250, 500, 1000]
+    let last: (StorageObject & { rawUrl?: string }) | null = null
+
+    for (const delayMs of delaysMs) {
+      if (delayMs > 0) await this.sleep(delayMs)
+      const meta = await this.getFileMetaInternal(key, true)
+      if (meta?.rawUrl || typeof meta?.size === 'number') return meta
+      last = meta
+    }
+
+    return last
+  }
+
+  private async fetchAsBuffer(url: string): Promise<Buffer | null> {
+    const resp = await fetch(url)
+    if (!resp.ok) return null
+    const arrayBuffer = await resp.arrayBuffer().catch(() => null)
+    if (!arrayBuffer) return null
+    return Buffer.from(arrayBuffer)
+  }
+
+  private async downloadWithBackoff(key: string): Promise<Buffer | null> {
+    const delaysMs = [0, 100, 250, 500, 1000]
+    const rootedKey = this.withRoot(key)
+
+    for (let attempt = 0; attempt < delaysMs.length; attempt++) {
+      const delayMs = delaysMs[attempt]
+      if (delayMs > 0) await this.sleep(delayMs)
+
+      const meta = await this.getFileMetaInternal(rootedKey, attempt > 0)
+      const rawUrl = meta?.rawUrl
+      if (rawUrl) {
+        const buf = await this.fetchAsBuffer(rawUrl)
+        if (buf) return buf
+      }
+
+      const publicUrl = this.getPublicUrl(rootedKey)
+      if (publicUrl) {
+        const buf = await this.fetchAsBuffer(publicUrl)
+        if (buf) return buf
+      }
+    }
+
+    return null
+  }
+
   async create(key: string, fileBuffer: Buffer, contentType?: string): Promise<StorageObject> {
     const rootedKey = this.withRoot(key)
     const absoluteKey = this.toAbsolutePath(rootedKey)
@@ -84,7 +144,13 @@ export class OpenListStorageProvider implements StorageProvider {
     if (!resp.ok) {
       const text = await resp.text().catch(() => '')
       this.logger?.error('OpenList upload failed', { status: resp.status, body: text })
-      throw new Error(`OpenList upload failed: ${resp.status}`)
+      const statusLabel = resp.status === 413 ? 'Request Entity Too Large' : 'Request Failed'
+      throw new StorageProviderError({
+        provider: 'openlist',
+        statusCode: resp.status,
+        message: `OpenList upload failed: ${resp.status} ${statusLabel}`,
+        body: text,
+      })
     }
 
     this.logger?.success(`Uploaded object: ${absoluteKey}`)
@@ -95,11 +161,67 @@ export class OpenListStorageProvider implements StorageProvider {
       rootPath: this.normalizedRoot(),
     })
 
-    const meta = await this.getFileMeta(rootedKey)
+    const meta = await this.waitForMeta(rootedKey)
     return (
       meta || {
         key: rootedKey,
         size: fileBuffer.length,
+        lastModified: new Date(),
+      }
+    )
+  }
+
+  async createFromStream(
+    key: string,
+    stream: Readable,
+    contentLength: number | null,
+    contentType?: string,
+  ): Promise<StorageObject> {
+    const rootedKey = this.withRoot(key)
+    const absoluteKey = this.toAbsolutePath(rootedKey)
+    const uploadPath = this.config.uploadEndpoint || '/api/fs/put'
+
+    const headers = new Headers()
+    headers.set('Authorization', await this.ensureAuthToken())
+    headers.set('Content-Type', contentType || 'application/octet-stream')
+    headers.set('File-Path', encodeURIComponent(absoluteKey))
+    if (contentLength !== null) {
+      headers.set('Content-Length', String(contentLength))
+    }
+
+    const init: RequestInit & { duplex?: 'half' } = {
+      method: 'PUT',
+      headers,
+      body: Readable.toWeb(stream),
+      duplex: 'half',
+    }
+
+    const resp = await fetch(`${this.baseUrl}${uploadPath}`, init)
+
+    if (!resp.ok) {
+      const text = await resp.text().catch(() => '')
+      this.logger?.error('OpenList upload failed', { status: resp.status, body: text })
+      const statusLabel = resp.status === 413 ? 'Request Entity Too Large' : 'Request Failed'
+      throw new StorageProviderError({
+        provider: 'openlist',
+        statusCode: resp.status,
+        message: `OpenList upload failed: ${resp.status} ${statusLabel}`,
+        body: text,
+      })
+    }
+
+    this.logger?.success(`Uploaded object: ${absoluteKey}`)
+    this.logger?.debug?.('OpenList upload details', {
+      originalKey: key,
+      rootedKey,
+      absoluteKey,
+      rootPath: this.normalizedRoot(),
+    })
+
+    const meta = await this.waitForMeta(rootedKey)
+    return (
+      meta || {
+        key: rootedKey,
         lastModified: new Date(),
       }
     )
@@ -123,23 +245,20 @@ export class OpenListStorageProvider implements StorageProvider {
     if (!resp.ok) {
       const text = await resp.text().catch(() => '')
       this.logger?.error('OpenList delete failed', { status: resp.status, body: text })
-      throw new Error(`OpenList delete failed: ${resp.status}`)
+      throw new StorageProviderError({
+        provider: 'openlist',
+        statusCode: resp.status,
+        message: `OpenList delete failed: ${resp.status}`,
+        body: text,
+      })
     }
     this.logger?.success(`Deleted object: ${key}`)
   }
 
   async get(key: string): Promise<Buffer | null> {
-    // If download endpoint is not provided, try to resolve raw_url via meta and fetch it
     const downloadPath = this.config.downloadEndpoint
     if (!downloadPath) {
-      const info = await this.getFileMeta(this.withRoot(key))
-      const rawUrl = (info as any)?.raw_url || undefined
-      if (!rawUrl) return null
-      const resp = await fetch(rawUrl)
-      if (!resp.ok) return null
-      const arrayBuffer = await resp.arrayBuffer().catch(() => null)
-      if (!arrayBuffer) return null
-      return Buffer.from(arrayBuffer)
+      return await this.downloadWithBackoff(key)
     }
 
     const rootedKey = this.withRoot(key)
@@ -158,19 +277,27 @@ export class OpenListStorageProvider implements StorageProvider {
     if (!base) {
       return ''
     }
-    return `${base.replace(/\/$/, '')}/${rootedKey}`
+    return `${base.replace(/\/$/, '')}/${this.encodeUrlPath(rootedKey)}`
   }
 
   async getFileMeta(key: string): Promise<StorageObject | null> {
-    const metaPath = this.config.metaEndpoint || this.config.downloadEndpoint || '/api/fs/get'
+    return await this.getFileMetaInternal(key, false)
+  }
+
+  private async getFileMetaInternal(
+    key: string,
+    refresh: boolean,
+  ): Promise<(StorageObject & { rawUrl?: string }) | null> {
+    const metaPath =
+      this.config.metaEndpoint || this.config.downloadEndpoint || '/api/fs/get'
     const rootedKey = this.withRoot(key)
     const urlPath = metaPath
-    const payload: Record<string, any> = {
+    const payload: Record<string, unknown> = {
       [this.pathField]: this.toAbsolutePath(rootedKey),
       password: '',
       page: 1,
       per_page: 0,
-      refresh: false,
+      refresh,
     }
     const resp = await this.request(urlPath, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
     if (!resp.ok) {
@@ -179,31 +306,39 @@ export class OpenListStorageProvider implements StorageProvider {
       return null
     }
 
-    const data = (await resp.json().catch(() => null)) as any
-    if (!data) return { key }
-    const node = data?.data || {}
-    const size = node?.size
-    const modified = node?.modified || node?.lastModified
-    const etag = node?.etag
-    const rawUrl = node?.raw_url
-    const result: StorageObject = {
-      key: rootedKey,
-      size: typeof size === 'number' ? size : undefined,
-      lastModified: modified ? new Date(modified) : undefined,
-      etag: typeof etag === 'string' ? etag : undefined,
+    const json: unknown = await resp.json().catch(() => null)
+    const isRecord = (val: unknown): val is Record<string, unknown> => {
+      return typeof val === 'object' && val !== null
     }
-    // Attach raw_url as non-standard property for internal usage
-    ;(result as any).raw_url = typeof rawUrl === 'string' ? rawUrl : undefined
+
+    if (!isRecord(json)) return { key: rootedKey }
+    const node = isRecord(json.data) ? json.data : json
+
+    const size = typeof node.size === 'number' ? node.size : undefined
+    const etag = typeof node.etag === 'string' ? node.etag : undefined
+    const rawUrl = typeof node.raw_url === 'string' ? node.raw_url : undefined
+    const modified =
+      typeof node.modified === 'string'
+        ? node.modified
+        : typeof node.lastModified === 'string'
+          ? node.lastModified
+          : undefined
+
+    const result: StorageObject & { rawUrl?: string } = {
+      key: rootedKey,
+      size,
+      lastModified: modified ? new Date(modified) : undefined,
+      etag,
+      rawUrl,
+    }
     return result
   }
 
   async listAll(): Promise<StorageObject[]> {
-    // Listing API not provided explicitly; return empty array by default.
-    // You can configure custom list endpoint and parsing later.
     const listPath = this.config.listEndpoint
     if (!listPath) return []
     
-    const payload: Record<string, any> = {
+    const payload: Record<string, unknown> = {
       [this.pathField]: this.toAbsolutePath(this.normalizedRoot()),
       password: '',
       page: 1,
@@ -216,22 +351,41 @@ export class OpenListStorageProvider implements StorageProvider {
       body: JSON.stringify(payload),
     })
     if (!resp.ok) return []
-    const data = (await resp.json().catch(() => null)) as any
-    const items: any[] = data?.data || data || []
+
+    const json: unknown = await resp.json().catch(() => null)
+    const isRecord = (val: unknown): val is Record<string, unknown> => {
+      return typeof val === 'object' && val !== null
+    }
+    const node = isRecord(json) && isRecord(json.data) ? json.data : null
+    const items = node && Array.isArray(node.content) ? node.content : []
+
     return items
       .map((item) => {
-        const rawKey = item?.path || item?.key || item?.name
-        if (!rawKey) return null
-        const rootedKey = this.withRoot(rawKey)
-        const size = item?.size
-        const lastModified = item?.modified || item?.lastModified || item?.mtime
-        const etag = item?.etag
+        if (!isRecord(item)) return null
+        const rawKey = item.path
+        const name = item.name
+        if (typeof rawKey !== 'string' && typeof name !== 'string') return null
+
+        const keyValue =
+          typeof rawKey === 'string' ? rawKey : `${this.normalizedRoot()}/${name}`
+        const rootedKey = this.withRoot(keyValue)
+        const size = typeof item.size === 'number' ? item.size : undefined
+        const etag = typeof item.etag === 'string' ? item.etag : undefined
+        const modified =
+          typeof item.modified === 'string'
+            ? item.modified
+            : typeof item.lastModified === 'string'
+              ? item.lastModified
+              : typeof item.mtime === 'string'
+                ? item.mtime
+                : undefined
+
         return {
           key: rootedKey,
-          size: typeof size === 'number' ? size : undefined,
-          lastModified: lastModified ? new Date(lastModified) : undefined,
-          etag: typeof etag === 'string' ? etag : undefined,
-        } as StorageObject
+          size,
+          lastModified: modified ? new Date(modified) : undefined,
+          etag,
+        }
       })
       .filter(Boolean) as StorageObject[]
   }
