@@ -439,14 +439,27 @@ const uploadImage = async (file: File, existingFileId?: string) => {
           ]
           const otherVideoExtensions = ['.mp4', '.avi', '.mkv', '.webm', '.flv', '.wmv', '.m4v', '.3gp', '.mpeg', '.mpg']
 
+          const fileNameLower = file.name.toLowerCase()
           const isOtherVideoFile = otherVideoTypes.includes(file.type) ||
-            otherVideoExtensions.some(ext => file.name.toLowerCase().endsWith(ext))
+            otherVideoExtensions.some(ext => fileNameLower.endsWith(ext))
+
+          const getBaseName = (name: string) => name.replace(/\.[^/.]+$/, '').toLowerCase()
+          const hasMatchingPhotoInSelection = isMovFile &&
+            selectedFiles.value.some((selected) => {
+              if (selected === file) return false
+              const selectedNameLower = selected.name.toLowerCase()
+              const selectedIsPhoto = ['.jpg', '.jpeg', '.heic', '.heif'].some(ext =>
+                selectedNameLower.endsWith(ext),
+              )
+              if (!selectedIsPhoto) return false
+              return getBaseName(selected.name) === getBaseName(file.name)
+            })
 
           let taskType = 'photo'
           if (isOtherVideoFile) {
             taskType = 'video'
           } else if (isMovFile) {
-            taskType = 'live-photo-video'
+            taskType = hasMatchingPhotoInSelection ? 'live-photo-video' : 'video'
           }
 
           const tasks = []
@@ -1550,13 +1563,19 @@ const handleUpload = async () => {
     uploadingFiles.value = new Map(uploadingFiles.value)
 
     const CONCURRENT_LIMIT = 3
-    const fileQueue = [...validFiles]
+    const videoExtensions = ['.mov', '.mp4', '.avi', '.mkv', '.webm', '.flv', '.wmv', '.m4v', '.3gp', '.mpeg', '.mpg']
+    const isVideoFile = (target: File) =>
+      target.type.startsWith('video/') ||
+      videoExtensions.some(ext => target.name.toLowerCase().endsWith(ext))
+    const fileQueue = [...validFiles].sort((a, b) =>
+      Number(isVideoFile(a)) - Number(isVideoFile(b)),
+    )
     const activeUploads = new Set<Promise<void>>()
 
     const startUpload = async (file: File): Promise<void> => {
       const fileId = fileIdMapping.get(file)!
       try {
-        uploadImage(file, fileId)
+        await uploadImage(file, fileId)
       } catch (error: any) {
         errors.push(`${file.name}: ${error.message || '上传失败'}`)
         console.error('上传错误:', error)

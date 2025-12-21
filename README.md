@@ -46,7 +46,7 @@
 ### Docker（推荐）
 
 ```bash
-docker run -d --name chronoframe --restart unless-stopped -p 3000:3000 -v ./data:/app/data kenv1e/chronoframe-private
+docker run -d --name chronoframe --restart unless-stopped -p 3000:3000 -v ./data:/app/data kenv1e/chronoframe
 ```
 
 访问 `http://localhost:3000` 即可使用。
@@ -59,7 +59,7 @@ docker run -d --name chronoframe --restart unless-stopped -p 3000:3000 -v ./data
 ```yaml
 services:
   chronoframe:
-    image: kenv1e/chronoframe-private:latest
+    image: kenv1e/chronoframe:latest
     container_name: chronoframe
     restart: unless-stopped
     ports:

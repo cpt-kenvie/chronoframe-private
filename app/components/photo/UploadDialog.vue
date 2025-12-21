@@ -449,8 +449,9 @@ const uploadImage = async (file: File, existingFileId?: string) => {
             return
           }
 
-          // MOV 格式可能是 LivePhoto，其他视频格式直接识别为视频
-          const isMovFile = file.type === 'video/quicktime' || file.name.toLowerCase().endsWith('.mov')
+          // MOV 只有与同名照片一起上传时才作为 LivePhoto 处理
+          const fileNameLower = file.name.toLowerCase()
+          const isMovFile = file.type === 'video/quicktime' || fileNameLower.endsWith('.mov')
 
           const otherVideoTypes = [
             'video/mp4',
@@ -465,15 +466,25 @@ const uploadImage = async (file: File, existingFileId?: string) => {
           const otherVideoExtensions = ['.mp4', '.avi', '.mkv', '.webm', '.flv', '.wmv', '.m4v', '.3gp', '.mpeg', '.mpg']
 
           const isOtherVideoFile = otherVideoTypes.includes(file.type) ||
-            otherVideoExtensions.some(ext => file.name.toLowerCase().endsWith(ext))
+            otherVideoExtensions.some(ext => fileNameLower.endsWith(ext))
+
+          const getBaseName = (name: string) => name.replace(/\.[^/.]+$/, '').toLowerCase()
+          const hasMatchingPhotoInSelection = isMovFile &&
+            selectedFiles.value.some((selected) => {
+              if (selected === file) return false
+              const selectedNameLower = selected.name.toLowerCase()
+              const selectedIsPhoto = ['.jpg', '.jpeg', '.heic', '.heif'].some(ext =>
+                selectedNameLower.endsWith(ext),
+              )
+              if (!selectedIsPhoto) return false
+              return getBaseName(selected.name) === getBaseName(file.name)
+            })
 
           let taskType = 'photo'
           if (isOtherVideoFile) {
-            // 非 MOV 格式的视频直接识别为视频
             taskType = 'video'
           } else if (isMovFile) {
-            // MOV 格式识别为 LivePhoto 候选
-            taskType = 'live-photo-video'
+            taskType = hasMatchingPhotoInSelection ? 'live-photo-video' : 'video'
           }
 
           const resp = await $fetch('/api/queue/add-task', {
@@ -819,7 +830,13 @@ const handleUpload = async () => {
     uploadingFiles.value = new Map(uploadingFiles.value)
 
     const CONCURRENT_LIMIT = 3
-    const fileQueue = [...validFiles]
+    const videoExtensions = ['.mov', '.mp4', '.avi', '.mkv', '.webm', '.flv', '.wmv', '.m4v', '.3gp', '.mpeg', '.mpg']
+    const isVideoFile = (target: File) =>
+      target.type.startsWith('video/') ||
+      videoExtensions.some(ext => target.name.toLowerCase().endsWith(ext))
+    const fileQueue = [...validFiles].sort((a, b) =>
+      Number(isVideoFile(a)) - Number(isVideoFile(b)),
+    )
     const activeUploads = new Set<Promise<void>>()
 
     const startUpload = async (file: File): Promise<void> => {

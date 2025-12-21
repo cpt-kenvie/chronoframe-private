@@ -18,7 +18,7 @@ import {
   extractLocationFromGPS,
   parseGPSCoordinates,
 } from '../location/geocoding'
-import { findLivePhotoVideoForImage } from '../video/livephoto'
+import { findLivePhotoVideoForImage, isLivePhotoVideo } from '../video/livephoto'
 import { processMotionPhotoFromXmp } from '../video/motion-photo'
 import { processVideoMetadata } from '../video/processor'
 import { getStorageManager } from '~~/server/plugins/3.storage'
@@ -260,6 +260,156 @@ export class QueueManager {
 
   /** 任务处理器 */
   private processors = (() => {
+    const processVideoFromStorageKey = async (params: {
+      taskId: number
+      storageKey: string
+      albumId?: number
+    }): Promise<Photo> => {
+      const { taskId, storageKey, albumId } = params
+      const storageProvider = getStorageManager().getProvider()
+      const encryptionEnabled = await isStorageEncryptionEnabled()
+      const toUrl = (key?: string | null) => {
+        if (!key) return null
+        return encryptionEnabled
+          ? toFileProxyUrl(key)
+          : storageProvider.getPublicUrl(key)
+      }
+      const photoId = generateSafePhotoId(storageKey)
+
+      let storageObject = await storageProvider.getFileMeta(storageKey)
+      let retries = 5
+
+      while (!storageObject && retries > 0) {
+        this.logger.info(
+          `未在存储中找到视频文件，检查中（剩余重试次数：${retries}）：${storageKey}`,
+        )
+        const maybeBuffer = await storageProvider.get(storageKey)
+        if (maybeBuffer) {
+          storageObject = {
+            key: storageKey,
+            size: maybeBuffer.length,
+            lastModified: new Date(),
+          }
+          break
+        }
+
+        if (retries > 1) {
+          await new Promise(resolve => setTimeout(resolve, 500))
+          retries--
+          storageObject = await storageProvider.getFileMeta(storageKey)
+        } else {
+          break
+        }
+      }
+
+      if (!storageObject) {
+        this.logger.warn(`重试后未在存储中找到视频文件：${storageKey}`)
+        throw new NonRetryableError(`未找到视频文件：${storageKey}`)
+      }
+
+      this.logger.success(`Video file found: ${storageKey}, size: ${storageObject.size}`)
+
+      await this.updateTaskStage(taskId, 'video-metadata')
+      this.logger.info(`[${taskId}:in-stage] 视频元数据提取`)
+      const processedData = await processVideoMetadata(storageKey)
+      if (!processedData) {
+        throw new Error('视频元数据处理失败')
+      }
+
+      const { metadata, thumbnailBuffer } = processedData
+
+      await this.updateTaskStage(taskId, 'video-thumbnail')
+      this.logger.info(`[${taskId}:in-stage] 视频缩略图上传`)
+      const thumbnailObject = await storageProvider.create(
+        `thumbnails/${photoId}.webp`,
+        thumbnailBuffer,
+        'image/webp',
+      )
+
+      const result: Photo = {
+        id: photoId,
+        title: path.basename(storageKey, path.extname(storageKey)),
+        description: null,
+        dateTaken:
+          storageObject.lastModified?.toISOString() || new Date().toISOString(),
+        tags: null,
+        width: metadata.width,
+        height: metadata.height,
+        aspectRatio: metadata.width / metadata.height,
+        storageKey: storageKey,
+        thumbnailKey: thumbnailObject.key,
+        fileSize: storageObject.size || null,
+        lastModified:
+          storageObject.lastModified?.toISOString() || new Date().toISOString(),
+        originalUrl: toUrl(storageKey),
+        thumbnailUrl: toUrl(thumbnailObject.key),
+        thumbnailHash: null,
+        exif: null,
+        latitude: null,
+        longitude: null,
+        country: null,
+        city: null,
+        locationName: null,
+        isLivePhoto: 0,
+        livePhotoVideoUrl: null,
+        livePhotoVideoKey: null,
+        isPanorama360: 0,
+        isVideo: 1,
+        duration: metadata.duration,
+        videoCodec: metadata.videoCodec,
+        audioCodec: metadata.audioCodec || null,
+        bitrate: metadata.bitrate,
+        frameRate: metadata.frameRate,
+      }
+
+      const db = useDB()
+      await db.insert(tables.photos).values(result).onConflictDoUpdate({
+        target: tables.photos.id,
+        set: result,
+      })
+
+      if (albumId) {
+        try {
+          const album = await db
+            .select()
+            .from(tables.albums)
+            .where(eq(tables.albums.id, albumId))
+            .get()
+
+          if (album) {
+            const existingRelation = await db
+              .select()
+              .from(tables.albumPhotos)
+              .where(
+                sql`${tables.albumPhotos.albumId} = ${albumId} AND ${tables.albumPhotos.photoId} = ${photoId}`,
+              )
+              .get()
+
+            if (!existingRelation) {
+              await db
+                .insert(tables.albumPhotos)
+                .values({
+                  albumId,
+                  photoId: photoId,
+                })
+                .run()
+
+              this.logger.info(
+                `[${this.workerId}] 视频 ${photoId} 已添加到相册 ${albumId}`,
+              )
+            }
+          }
+        } catch (error) {
+          this.logger.error(
+            `[${this.workerId}] 处理视频 ${photoId} 时添加到相册 ${albumId} 失败：`,
+            error,
+          )
+        }
+      }
+
+      return result
+    }
+
     return {
       photo: async (task: PipelineQueueItem) => {
         const { id: taskId, payload } = task
@@ -673,7 +823,7 @@ export class QueueManager {
             `live-photo照片任务的无效负载类型：${payload.type}`,
           )
         }
-        const { storageKey: videoKey } = payload
+        const { storageKey: videoKey, albumId } = payload
 
         try {
           this.logger.info(
@@ -696,6 +846,15 @@ export class QueueManager {
             throw new NonRetryableError(`LivePhoto 视频 ${videoKey} 不存在`)
           }
 
+          const videoFileName = path.basename(videoKey)
+          if (!isLivePhotoVideo(videoFileName, storageObject.size)) {
+            this.logger.info(
+              `MOV ${videoKey} 不符合 LivePhoto 条件，按普通视频处理`,
+            )
+            await processVideoFromStorageKey({ taskId, storageKey: videoKey, albumId })
+            return
+          }
+
           // 寻找是否有同名的照片文件
           const videoDir = path.dirname(videoKey)
           const videoBaseName = path.basename(videoKey, path.extname(videoKey))
@@ -709,30 +868,49 @@ export class QueueManager {
             path.join(videoDir, `${videoBaseName}.jpeg`).replace(/\\/g, '/'),
           ]
 
-          let matchedPhoto: Photo | null = null
-          for (const photoKey of possiblePhotoKeys) {
-            const photos = await db
-              .select()
-              .from(tables.photos)
-              .where(eq(tables.photos.storageKey, photoKey))
-              .limit(1)
+          const findMatchedPhoto = async (): Promise<Photo | null> => {
+            for (const photoKey of possiblePhotoKeys) {
+              const photos = await db
+                .select()
+                .from(tables.photos)
+                .where(eq(tables.photos.storageKey, photoKey))
+                .limit(1)
 
-            if (photos.length > 0) {
-              matchedPhoto = photos[0]
-              this.logger.info(
-                `LivePhoto 视频 ${videoKey} 匹配照片 ${photoKey}`,
-              )
-              break
+              if (photos.length > 0) {
+                this.logger.info(`LivePhoto 视频 ${videoKey} 匹配照片 ${photoKey}`)
+                return photos[0]
+              }
+            }
+
+            return null
+          }
+
+          let matchedPhoto = await findMatchedPhoto()
+
+          if (!matchedPhoto) {
+            let hasMatchingPhotoFile = false
+            for (const photoKey of possiblePhotoKeys) {
+              const meta = await storageProvider.getFileMeta(photoKey)
+              if (meta) {
+                hasMatchingPhotoFile = true
+                break
+              }
+            }
+
+            if (hasMatchingPhotoFile) {
+              const waitStartTime = Date.now()
+              const maxWaitMs = 60_000
+              while (!matchedPhoto && Date.now() - waitStartTime < maxWaitMs) {
+                await new Promise(resolve => setTimeout(resolve, 1000))
+                matchedPhoto = await findMatchedPhoto()
+              }
             }
           }
 
           if (!matchedPhoto) {
-            this.logger.warn(
-              `LivePhoto 视频 ${videoKey} 没有匹配的照片`,
-            )
-            throw new Error(
-              `LivePhoto 视频 ${videoKey} 没有匹配的照片`,
-            )
+            this.logger.info(`LivePhoto 视频 ${videoKey} 没有匹配的照片，按普通视频处理`)
+            await processVideoFromStorageKey({ taskId, storageKey: videoKey, albumId })
+            return
           }
 
           const livePhotoVideoUrl = toUrl(videoKey)

@@ -23,6 +23,7 @@ type PipelineQueuePayload =
   | {
       type: 'live-photo-video'
       storageKey: string
+      albumId?: number
     }
   | {
       type: 'photo-reverse-geocoding'

@@ -31,9 +31,6 @@ const dateRange = ref<string>()
 const visiblePhotos = ref(new Set<number>())
 
 const isMobile = useMediaQuery('(max-width: 768px)')
-const { batchProcessLivePhotos } = useLivePhotoProcessor()
-
-const processedBatch = ref(new Set<string>())
 const headerRef = ref<HTMLElement>()
 const headerHeight = ref(0)
 const headerColumnWidth = ref(0)
@@ -193,40 +190,6 @@ const handleVisibilityChange = ({
     visiblePhotos.value.delete(index)
   }
   updateDateRange()
-
-  // Process LivePhotos for visible photos
-  nextTick(() => {
-    processVisibleLivePhotos()
-  })
-}
-
-// Process LivePhotos for currently visible photos
-const processVisibleLivePhotos = async () => {
-  const visiblePhotosArray = Array.from(visiblePhotos.value)
-  const livePhotosToProcess = visiblePhotosArray
-    .map((index) => displayPhotos.value[index])
-    .filter(
-      (photo): photo is Photo =>
-        photo != null &&
-        photo.isLivePhoto === 1 &&
-        Boolean(photo.livePhotoVideoUrl) &&
-        !processedBatch.value.has(photo.id),
-    )
-
-  if (livePhotosToProcess.length === 0) return
-
-  // Mark as processed to avoid reprocessing
-  livePhotosToProcess.forEach((photo) => {
-    processedBatch.value.add(photo.id)
-  })
-
-  // Start background processing
-  batchProcessLivePhotos(
-    livePhotosToProcess.map((photo) => ({
-      id: photo.id,
-      livePhotoVideoUrl: photo.livePhotoVideoUrl!,
-    })),
-  )
 }
 
 const visibleCities = ref<string>()

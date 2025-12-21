@@ -316,7 +316,7 @@ const handleTouchStart = (event: TouchEvent) => {
     return
   }
 
-  if (!props.photo.isLivePhoto || !videoBlobUrl.value) return
+  if (!props.photo.isLivePhoto) return
 
   touchCount.value = event.touches.length
 
@@ -331,7 +331,7 @@ const handleTouchStart = (event: TouchEvent) => {
       longPressTimer.value = setTimeout(() => {
         // Double check: only play if still single touch and touching
         if (isTouching.value && touchCount.value === 1) {
-          playLivePhotoVideo()
+          void processLivePhotoWhenVisible()
         }
       }, 350)
     }
@@ -431,12 +431,17 @@ const handleClick = (event: Event) => {
 
 // 智能LivePhoto处理：基于可见性和用户行为
 const processLivePhotoWhenVisible = async () => {
-  if (
-    !props.photo.isLivePhoto ||
-    !props.photo.livePhotoVideoUrl ||
-    !isVisible.value
-  )
+  if (!props.photo.isLivePhoto || !props.photo.livePhotoVideoUrl) return
+
+  if (videoBlob.value && videoBlobUrl.value && isVideoLoaded.value) {
+    if (isHovering.value || isTouching.value) {
+      await nextTick()
+      playLivePhotoVideo()
+    }
     return
+  }
+
+  if (!isVisible.value && !isHovering.value && !isTouching.value) return
 
   try {
     // 使用优化的转换函数，支持重试和缓存
@@ -457,6 +462,11 @@ const processLivePhotoWhenVisible = async () => {
       // 预热视频元素以提高播放性能
       if (videoRef.value) {
         videoRef.value.load()
+      }
+      if (isHovering.value || isTouching.value) {
+        await nextTick()
+        videoRef.value?.load()
+        playLivePhotoVideo()
       }
     }
   } catch (error) {
@@ -568,13 +578,6 @@ onMounted(() => {
                 isVisible: newVisibility,
                 date: props.photo.dateTaken || new Date().toISOString(),
               })
-
-              // Process LivePhoto when it becomes visible
-              if (newVisibility) {
-                nextTick(() => {
-                  processLivePhotoWhenVisible()
-                })
-              }
             }
           })
         },
