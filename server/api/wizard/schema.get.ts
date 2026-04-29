@@ -50,7 +50,7 @@ export default eventHandler(async (event) => {
         label: 'wizard.admin.confirmPassword.label',
         ui: { type: 'password', required: true }
       }
-    ] as any[]
+    ]
 
     return { namespace: 'admin', fields }
   }
@@ -112,6 +112,30 @@ export default eventHandler(async (event) => {
 
     const fields = namespaceSettings.map((setting) => {
       const uiConfig = getSettingUIConfig(query.namespace, setting.key)
+
+      if (query.namespace === 'app' && setting.key === 'appearance.theme') {
+        return {
+          ...setting,
+          ui: {
+            type: 'select',
+            options: uiConfig?.options ?? [
+              {
+                label: 'settings.app.appearance.theme.light',
+                value: 'light',
+              },
+              {
+                label: 'settings.app.appearance.theme.dark',
+                value: 'dark',
+              },
+              {
+                label: 'settings.app.appearance.theme.system',
+                value: 'system',
+              },
+            ],
+            help: uiConfig?.help,
+          },
+        }
+      }
       
       // Patch for Wizard Map Provider to use rich selector
       if (query.namespace === 'map' && setting.key === 'provider') {

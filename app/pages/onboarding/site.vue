@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { z } from 'zod'
+import type { FieldDescriptor } from '~~/shared/types/settings'
 
 definePageMeta({
   layout: 'onboarding',
@@ -7,7 +8,6 @@ definePageMeta({
 
 const router = useRouter()
 
-// Use wizard form for 'app' namespace (site settings)
 const {
   fields,
   state,
@@ -20,10 +20,16 @@ const schema = z.object({
   slogan: z.string().optional(),
   author: z.string().optional(),
   avatarUrl: z.string().url('Invalid URL').optional().or(z.literal('')),
+  'appearance.theme': z.enum(['light', 'dark', 'system']),
 })
 
+const getSelectItems = (field: FieldDescriptor) =>
+  field.ui.options?.map((option) => ({
+    ...option,
+    label: $t(option.label),
+  })) ?? []
+
 function onSubmit() {
-  // Validation passed, data is already in the store via useWizardForm binding
   router.push('/onboarding/storage')
 }
 </script>
@@ -62,7 +68,16 @@ function onSubmit() {
           :required="field.ui.required"
           :help="$t(field.ui.help || '')"
         >
+          <USelectMenu
+            v-if="field.ui.type === 'select'"
+            v-model="state[field.key]"
+            :items="getSelectItems(field)"
+            label-key="label"
+            value-key="value"
+            class="w-full"
+          />
           <WizardInput
+            v-else
             v-model="state[field.key]"
             :type="field.ui.type === 'url' ? 'url' : 'text'"
             :placeholder="field.ui.placeholder"

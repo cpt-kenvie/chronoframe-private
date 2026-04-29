@@ -17,6 +17,7 @@ export default eventHandler(async (event) => {
         slogan: z.string().optional(),
         avatarUrl: z.string().optional(),
         author: z.string().optional(),
+        'appearance.theme': z.enum(['light', 'dark', 'system']).default('system'),
       }),
       storage: z.object({
         name: z.string().min(1),
@@ -71,6 +72,7 @@ export default eventHandler(async (event) => {
   if (body.site.slogan) await settingsManager.set('app', 'slogan', body.site.slogan)
   if (body.site.avatarUrl) await settingsManager.set('app', 'avatarUrl', body.site.avatarUrl)
   if (body.site.author) await settingsManager.set('app', 'author', body.site.author)
+  await settingsManager.set('app', 'appearance.theme', body.site['appearance.theme'])
 
   // 3. Handle Storage Settings
   // Check if provider already exists to avoid duplicates if re-running?
