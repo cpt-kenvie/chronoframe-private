@@ -1,6 +1,13 @@
 import pkg from './package.json'
 import tailwindcss from '@tailwindcss/vite'
 import type { AnalyticsConfig } from './shared/types/config'
+import { installDevFetchErrorHint } from './shared/utils/dev-fetch-error-hint'
+
+const ENABLE_DEV_FETCH_ABORT_HINT = process.env.NODE_ENV !== 'production'
+
+if (ENABLE_DEV_FETCH_ABORT_HINT) {
+  installDevFetchErrorHint()
+}
 
 // https://nuxt.com/docs/api/configuration/nuxt-config
 export default defineNuxtConfig({
@@ -82,7 +89,7 @@ export default defineNuxtConfig({
         key: '',
       },
     },
-    STORAGE_PROVIDER: 's3' satisfies 's3' | 'local' | 'openlist',
+    STORAGE_PROVIDER: 'local' satisfies 's3' | 'local' | 'openlist',
     provider: {
       s3: {
         endpoint: '',

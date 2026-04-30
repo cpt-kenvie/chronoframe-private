@@ -68,13 +68,10 @@ function onSubmit() {
           :required="field.ui.required"
           :help="$t(field.ui.help || '')"
         >
-          <USelectMenu
+          <WizardSelect
             v-if="field.ui.type === 'select'"
             v-model="state[field.key]"
             :items="getSelectItems(field)"
-            label-key="label"
-            value-key="value"
-            class="w-full"
           />
           <WizardInput
             v-else
