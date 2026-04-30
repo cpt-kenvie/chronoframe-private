@@ -35,12 +35,15 @@ export default defineOAuthGitHubEventHandler({
     } else if (userFromEmail.isAdmin === 0) {
       throw _accessDeniedError
     } else {
+      const runtimeConfig = useRuntimeConfig()
+      const allowInsecureCookie = String(runtimeConfig.allowInsecureCookie) === 'true'
+
       await setUserSession(
         event,
         { user: userFromEmail },
         {
           cookie: {
-            secure: !useRuntimeConfig().allowInsecureCookie,
+            secure: process.env.NODE_ENV === 'production' && !allowInsecureCookie,
           },
         },
       )

@@ -108,7 +108,7 @@ const handleLogin = () => {
     />
     <p class="text-gray-500 text-center">
       {{
-        !user?.isAdmin
+        !loggedIn
           ? '请登录以查看仪表板'
           : '抱歉，您没有访问此页面的权限。'
       }}

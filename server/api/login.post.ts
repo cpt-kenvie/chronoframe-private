@@ -29,12 +29,15 @@ export default eventHandler(async (event) => {
     throw _invalidCredentialsError
   }
 
+  const runtimeConfig = useRuntimeConfig()
+  const allowInsecureCookie = String(runtimeConfig.allowInsecureCookie) === 'true'
+
   await setUserSession(
     event,
     { user },
     {
       cookie: {
-        secure: !useRuntimeConfig().allowInsecureCookie,
+        secure: process.env.NODE_ENV === 'production' && !allowInsecureCookie,
       },
     },
   )
