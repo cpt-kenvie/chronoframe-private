@@ -49,10 +49,13 @@ interface DuplicateCheckResult {
   photoId?: string
 }
 
-interface Album {
-  id: number
-  title: string
-  photoIds: string[]
+interface QueueTaskStatus {
+  status: PipelineQueueItem['status']
+  statusStage: PipelineQueueItem['statusStage']
+  errorMessage?: string | null
+  result?: {
+    photoId?: string
+  }
 }
 
 const props = defineProps<{
@@ -90,6 +93,7 @@ const dayjs = useDayjs()
 const toast = useToast()
 const router = useRouter()
 const { refresh: refreshPhotos } = usePhotos()
+const { data: albums, status: albumsStatus, refresh: refreshAlbums } = await useAlbums()
 
 const selectedFiles = ref<File[]>([])
 const uploadingFiles = ref<Map<string, UploadingFile>>(new Map())
@@ -145,8 +149,11 @@ const schedulePhotosRefresh = () => {
   }, UPLOAD_REFRESH_DEBOUNCE_MS)
 }
 
-// 获取所有相册
-const { data: albums, status: albumsStatus } = await useFetch<Album[]>('/api/albums')
+const notifyAlbumMembershipChanged = async (photoIds: string[]) => {
+  if (!selectedAlbumId.value) return
+  await refreshAlbumsData()
+  emit('upload-complete', photoIds)
+}
 
 const albumOptions = computed(() => {
   if (!albums.value) return []
@@ -162,9 +169,10 @@ const albumOptions = computed(() => {
 // 监听 targetAlbumId 和 open 变化，确保每次打开时都正确设置目标相册
 watch(
   () => [props.targetAlbumId, props.open] as const,
-  ([newTargetAlbumId, newOpen]) => {
+  async ([newTargetAlbumId, newOpen]) => {
     if (newOpen) {
       selectedAlbumId.value = newTargetAlbumId || null
+      await refreshAlbums()
     }
   },
   { immediate: true },
@@ -305,7 +313,7 @@ const statusIntervals = ref<Map<number, NodeJS.Timeout>>(new Map())
 const startTaskStatusCheck = (taskId: number, fileId: string) => {
   const intervalId = setInterval(async () => {
     try {
-      const response = await $fetch(`/api/queue/stats/${taskId}`)
+      const response = await $fetch<QueueTaskStatus>(`/api/queue/stats/${taskId}`)
       const uploadingFile = uploadingFiles.value.get(fileId)
 
       if (!uploadingFile) {
@@ -327,12 +335,17 @@ const startTaskStatusCheck = (taskId: number, fileId: string) => {
         statusIntervals.value.delete(taskId)
 
         // 记录完成的照片ID（从文件名推断）
-        const photoId = (response as any).result?.photoId
+        const photoId = response.result?.photoId
         if (photoId) {
           completedPhotoIds.value.push(photoId)
         }
 
         schedulePhotosRefresh()
+        if (photoId) {
+          await notifyAlbumMembershipChanged([photoId])
+        } else {
+          await notifyAlbumMembershipChanged([])
+        }
       } else if (response.status === 'failed') {
         uploadingFile.status = 'error'
         uploadingFile.error = `处理失败: ${response.errorMessage || '未知错误'}`
@@ -494,13 +507,13 @@ const uploadImage = async (
             uploadingFile.stage = null
             scheduleUploadQueueUpdate(true)
 
-            if (finalize?.photoId) {
-              completedPhotoIds.value.push(finalize.photoId)
-            } else if (prepare?.photoId) {
-              completedPhotoIds.value.push(prepare.photoId)
+            const photoId = finalize?.photoId || prepare?.photoId
+            if (photoId) {
+              completedPhotoIds.value.push(photoId)
             }
 
             schedulePhotosRefresh()
+            await notifyAlbumMembershipChanged(photoId ? [photoId] : [])
             return
           }
 
@@ -859,7 +872,7 @@ const handleUpload = async () => {
             color: 'success',
           })
 
-          emit('upload-complete', skippedPhotoIds)
+          await notifyAlbumMembershipChanged(skippedPhotoIds)
         } catch (error) {
           console.error('添加照片到相册失败:', error)
           toast.add({
@@ -966,12 +979,12 @@ const handleUpload = async () => {
                 photoIds: skippedPhotoIds,
               },
             })
+            await notifyAlbumMembershipChanged(skippedPhotoIds)
           } catch (error) {
             console.error('添加已存在照片到相册失败:', error)
           }
         }
 
-        emit('upload-complete', completedPhotoIds.value)
         selectedFiles.value = []
       } finally {
         isUploading.value = false

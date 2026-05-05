@@ -1,5 +1,6 @@
 <script lang="ts" setup>
 import type { Album, Photo } from '~~/server/utils/db'
+import type { AlbumListItem } from '~/composables/useAlbums'
 import type { FormSubmitEvent, FormError } from '@nuxt/ui'
 
 definePageMeta({
@@ -12,8 +13,12 @@ useHead({
 
 interface AlbumItem extends Album {
   photoCount?: number
-  photoIds?: string[]
+  photoIds: string[]
   coverPhoto?: Photo | null
+}
+
+interface AlbumDetail extends Album {
+  photos: Photo[]
 }
 
 interface AlbumFormState {
@@ -25,7 +30,7 @@ interface AlbumFormState {
 const route = useRoute()
 
 const albums = ref<AlbumItem[]>([])
-const isLoadingAlbums = ref(false)
+const isLoadingAlbums = ref(true)
 const allPhotos = ref<Photo[]>([])
 const isLoadingPhotos = ref(false)
 
@@ -65,7 +70,7 @@ const loadAlbums = async () => {
   isLoadingAlbums.value = true
   try {
     const response = await $fetch('/api/albums')
-    albums.value = (response as any[]).map((album) => ({
+    albums.value = response.map((album) => ({
       ...album,
       photoCount: album.photoIds?.length || 0,
     }))
@@ -117,7 +122,7 @@ const openCreateSlideover = () => {
 const openEditSlideover = async (album: AlbumItem) => {
   currentAlbum.value = album
   try {
-    const albumDetail = (await $fetch(`/api/albums/${album.id}`)) as any
+    const albumDetail = await $fetch<AlbumDetail>(`/api/albums/${album.id}`)
     formData.title = album.title
     formData.description = album.description || ''
     formData.isHidden = album.isHidden || false
@@ -189,6 +194,7 @@ const onFormSubmit = async (event: FormSubmitEvent<AlbumFormState>) => {
       isAlbumSlideoverOpen.value = false
     }
 
+    await refreshAlbumsData()
     await loadAlbums()
   } catch (error) {
     console.error('Failed to save album:', error)
@@ -217,6 +223,7 @@ const deleteAlbum = async () => {
     })
 
     isDeleteConfirmOpen.value = false
+    await refreshAlbumsData()
     await loadAlbums()
   } catch (error) {
     console.error('Failed to delete album:', error)

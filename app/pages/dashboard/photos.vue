@@ -72,7 +72,14 @@ const route = useRoute()
 const dayjs = useDayjs()
 
 const { status, refresh } = usePhotos()
-const { filteredPhotos, selectedCounts, hasActiveFilters, photoToAlbumsMap, albums } = usePhotoFilters()
+const {
+  filteredPhotos,
+  selectedCounts,
+  hasActiveFilters,
+  photoToAlbumsMap,
+  albums,
+  refreshAlbums,
+} = usePhotoFilters()
 
 const totalSelectedFilters = computed(() => {
   return Object.values(selectedCounts.value).reduce(
@@ -147,6 +154,15 @@ interface UploadingFile {
   abortUpload?: () => void
 }
 
+interface QueueTaskStatus {
+  status: PipelineQueueItem['status']
+  statusStage: PipelineQueueItem['statusStage']
+  errorMessage?: string | null
+  result?: {
+    photoId?: string
+  }
+}
+
 const uploadingFiles = ref<Map<string, UploadingFile>>(new Map())
 let uploadQueueUpdateTimer: ReturnType<typeof setTimeout> | null = null
 let lastUploadQueueUpdateAt = 0
@@ -192,6 +208,11 @@ const schedulePhotosRefresh = () => {
     photosRefreshTimer = null
     void refresh()
   }, UPLOAD_REFRESH_DEBOUNCE_MS)
+}
+
+const notifyAlbumMembershipChanged = async () => {
+  if (!selectedAlbumId.value) return
+  await refreshAlbums()
 }
 
 interface EditFormState {
@@ -476,6 +497,7 @@ const uploadImage = async (
             }
 
             schedulePhotosRefresh()
+            await notifyAlbumMembershipChanged()
             return
           }
 
@@ -732,9 +754,11 @@ watch(
   { deep: true },
 )
 
-watch(isUploadSlideoverOpen, (open) => {
+watch(isUploadSlideoverOpen, async (open) => {
   if (!open) {
     clearSelectedFiles()
+  } else {
+    await refreshAlbums()
   }
 })
 
@@ -864,7 +888,7 @@ const statusIntervals = ref<Map<number, NodeJS.Timeout>>(new Map())
 const startTaskStatusCheck = (taskId: number, fileId: string) => {
   const intervalId = setInterval(async () => {
     try {
-      const response = await $fetch(`/api/queue/stats/${taskId}`)
+      const response = await $fetch<QueueTaskStatus>(`/api/queue/stats/${taskId}`)
       const uploadingFile = uploadingFiles.value.get(fileId)
 
       if (!uploadingFile) {
@@ -889,7 +913,7 @@ const startTaskStatusCheck = (taskId: number, fileId: string) => {
         statusIntervals.value.delete(taskId)
 
         // 记录完成的照片ID
-        const photoId = (response as any).result?.photoId
+        const photoId = response.result?.photoId
         if (photoId && !currentBatchPhotoIds.value.includes(photoId)) {
           currentBatchPhotoIds.value.push(photoId)
         }
@@ -898,6 +922,7 @@ const startTaskStatusCheck = (taskId: number, fileId: string) => {
 
         // 刷新照片列表
         schedulePhotosRefresh()
+        await notifyAlbumMembershipChanged()
 
         // 2秒后从界面移除成功的任务
         // setTimeout(() => {
@@ -1532,6 +1557,7 @@ const handleUpload = async () => {
               photoIds: skippedPhotoIds,
             },
           })
+          await notifyAlbumMembershipChanged()
 
           toast.add({
             title: '添加成功',
@@ -1647,6 +1673,7 @@ const handleUpload = async () => {
                 photoIds: skippedPhotoIds,
               },
             })
+            await notifyAlbumMembershipChanged()
           } catch (error) {
             console.error('添加已存在照片到相册失败:', error)
           }
@@ -2030,6 +2057,7 @@ const handleAddToAlbums = async () => {
 
     isAddToAlbumsDialogOpen.value = false
     await refresh()
+    await refreshAlbums()
   } catch (error) {
     console.error('添加到相册失败:', error)
     toast.add({
