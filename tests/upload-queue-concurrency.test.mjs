@@ -8,6 +8,8 @@ const uploadQueuePanel = await readFile('app/components/ui/UploadQueuePanel.vue'
 const uploadQueueItem = await readFile('app/components/ui/UploadQueueItem.vue', 'utf8')
 const uploadTaskClassifier = await readFile('app/libs/upload-task-classifier.ts', 'utf8')
 const addTasksApi = await readFile('server/api/queue/add-tasks.post.ts', 'utf8')
+const photoFilters = await readFile('app/composables/usePhotoFilters.ts', 'utf8')
+const dashboardAlbums = await readFile('app/pages/dashboard/albums.vue', 'utf8')
 
 test('dashboard photo batch upload waits for each queued upload promise', () => {
   assert.match(photosPage, /await uploadImage\(file, fileId, validFiles\)/)
@@ -67,4 +69,23 @@ test('upload dropzones keep their prompt visible after files are selected', () =
 test('batch upload queue preserves album targets for photos and videos', () => {
   assert.match(addTasksApi, /type: z\.literal\('photo'\),\s*storageKey: z\.string\(\)\.nonempty\(\),\s*albumId: z\.number\(\)\.int\(\)\.positive\(\)\.optional\(\),/)
   assert.match(addTasksApi, /type: z\.literal\('video'\),\s*storageKey: z\.string\(\)\.nonempty\(\),\s*albumId: z\.number\(\)\.int\(\)\.positive\(\)\.optional\(\),/)
+})
+
+test('album consumers use the shared refreshable album cache', () => {
+  assert.match(uploadDialog, /useAlbums\(\)/)
+  assert.match(photoFilters, /useAlbums\(\)/)
+  assert.match(uploadDialog, /await refreshAlbums\(\)/)
+  assert.doesNotMatch(uploadDialog, /useFetch<Album\[\]>\('\/api\/albums'\)/)
+  assert.doesNotMatch(photoFilters, /useFetch<[\s\S]*?>\('\/api\/albums'\)/)
+})
+
+test('album uploads refresh album counts when membership changes', () => {
+  assert.match(uploadDialog, /const notifyAlbumMembershipChanged = async/)
+  assert.match(uploadDialog, /await refreshAlbumsData\(\)/)
+  assert.match(uploadDialog, /await notifyAlbumMembershipChanged\(\[photoId\]\)/)
+  assert.match(uploadDialog, /await notifyAlbumMembershipChanged\(skippedPhotoIds\)/)
+})
+
+test('dashboard album list stays loading until the first fetch completes', () => {
+  assert.match(dashboardAlbums, /const isLoadingAlbums = ref\(true\)/)
 })
