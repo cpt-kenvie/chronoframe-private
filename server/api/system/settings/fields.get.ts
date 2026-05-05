@@ -1,5 +1,8 @@
 import { z } from 'zod'
-import { settingsManager } from '~~/server/services/settings/settingsManager'
+import {
+  redactSecretValue,
+  settingsManager,
+} from '~~/server/services/settings/settingsManager'
 import { getSettingUIConfig } from '~~/server/services/settings/ui-config'
 import type { SettingsFieldsResponse } from '~~/shared/types/settings'
 
@@ -48,8 +51,11 @@ export default eventHandler(async (event) => {
     // 为每个设置添加 UI 配置
     const fields = namespaceSettings.map((setting) => {
       const uiConfig = getSettingUIConfig(query.namespace, setting.key)
+      const { value, defaultValue, ...safeSetting } = setting
       return {
-        ...setting,
+        ...safeSetting,
+        value: redactSecretValue(setting, value ?? null),
+        defaultValue: redactSecretValue(setting, defaultValue ?? null),
         ui: uiConfig || {
           type: 'input' as const,
           required: false,

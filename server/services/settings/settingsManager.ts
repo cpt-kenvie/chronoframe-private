@@ -7,6 +7,13 @@ import type {
 } from '~~/shared/types/settings'
 import type { SettingKey, SettingNamespace } from './contants'
 
+export const redactSecretValue = (
+  setting: { isSecret?: boolean | null },
+  value: SettingValue,
+): SettingValue => {
+  return setting.isSecret ? '' : value
+}
+
 export class SettingsManager {
   private static instance: SettingsManager
   protected settingsCache: Map<string, SettingValue> = new Map()
@@ -364,7 +371,7 @@ export class SettingsManager {
     return result
   }
 
-  async getSchema(): Promise<SettingConfig[]> {
+  async getSchema(options: { revealSecrets?: boolean } = {}): Promise<SettingConfig[]> {
     const db = useDB()
     const settings = db.select().from(tables.settings).all()
 
@@ -372,10 +379,14 @@ export class SettingsManager {
       namespace: setting.namespace,
       key: setting.key,
       type: setting.type,
-      value: this.deserialize(setting.value, setting.type),
+      value: options.revealSecrets
+        ? this.deserialize(setting.value, setting.type)
+        : redactSecretValue(setting, this.deserialize(setting.value, setting.type)),
       defaultValue:
         setting.defaultValue &&
-        this.deserialize(setting.defaultValue, setting.type),
+        (options.revealSecrets
+          ? this.deserialize(setting.defaultValue, setting.type)
+          : redactSecretValue(setting, this.deserialize(setting.defaultValue, setting.type))),
       label: setting.label,
       description: setting.description,
       isReadonly: setting.isReadonly,

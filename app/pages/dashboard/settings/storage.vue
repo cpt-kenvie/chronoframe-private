@@ -41,19 +41,26 @@ const storageUploadLimitField = computed(() => {
   )
 })
 
+const buildStorageEncryptionPayload = (): Record<string, SettingValue> => {
+  const payload: Record<string, SettingValue> = {
+    'encryption.enabled': storageState['encryption.enabled'],
+  }
+  const encryptionKey = storageState['encryption.key']
+
+  if (
+    storageState['encryption.enabled'] &&
+    typeof encryptionKey === 'string' &&
+    encryptionKey.trim()
+  ) {
+    payload['encryption.key'] = encryptionKey
+  }
+
+  return payload
+}
+
 const handleStorageEncryptionSubmit = async () => {
   try {
-    if (storageState['encryption.enabled']) {
-      await storageSubmit({
-        'encryption.enabled': storageState['encryption.enabled'],
-        'encryption.key': storageState['encryption.key'],
-      })
-      return
-    }
-
-    await storageSubmit({
-      'encryption.enabled': storageState['encryption.enabled'],
-    })
+    await storageSubmit(buildStorageEncryptionPayload())
   } catch {
     /* empty */
   }

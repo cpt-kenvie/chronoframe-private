@@ -1,10 +1,64 @@
 import crypto from 'node:crypto'
 import { z } from 'zod'
+import type { SettingValue } from '~~/shared/types/settings'
 import {
   settingKeys,
   settingNamespaces,
 } from '~~/server/services/settings/contants'
 import { settingsManager } from '~~/server/services/settings/settingsManager'
+import { getGlobalStorageManager } from '~~/server/services/storage/events'
+
+type SettingsBatchUpdate = {
+  namespace: (typeof settingNamespaces)[number]
+  key: (typeof settingKeys)[number]
+  value: SettingValue
+}
+
+const preserveBlankSecretUpdates = async (
+  updates: SettingsBatchUpdate[],
+): Promise<SettingsBatchUpdate[]> => {
+  const schema = await settingsManager.getSchema({ revealSecrets: true })
+  const result: SettingsBatchUpdate[] = []
+
+  for (const update of updates) {
+    const setting = schema.find(
+      (item) => item.namespace === update.namespace && item.key === update.key,
+    )
+    if (
+      setting?.isSecret &&
+      typeof update.value === 'string' &&
+      update.value.trim() === ''
+    ) {
+      const currentValue = await settingsManager.get(update.namespace, update.key)
+      if (typeof currentValue === 'string' && currentValue.trim()) {
+        continue
+      }
+    }
+
+    result.push(update)
+  }
+
+  return result
+}
+
+const enqueueExistingStorageEncryption = async (): Promise<void> => {
+  try {
+    const workerPool = globalThis.__workerPool
+    const storageManager = getGlobalStorageManager()
+    if (!workerPool || !storageManager) return
+
+    const storageProvider = storageManager.getProvider()
+    const objects = await storageProvider.listAll()
+    for (const object of objects) {
+      await workerPool.addTask(
+        { type: 'file-encryption', storageKey: object.key },
+        { priority: 1, maxAttempts: 3 },
+      )
+    }
+  } catch (error) {
+    logger.storage.warn('Failed to enqueue existing storage encryption tasks', error)
+  }
+}
 
 /**
  * PUT /api/system/settings/batch
@@ -52,7 +106,7 @@ export default eventHandler(async (event) => {
     let successCount = 0
     const errors: Array<{ namespace: string; key: string; error: string }> = []
 
-    const updates = [...body.updates]
+    const updates: SettingsBatchUpdate[] = [...body.updates]
     const encryptionEnabledUpdate = updates.find(
       (u) =>
         u.namespace === 'storage' &&
@@ -97,7 +151,9 @@ export default eventHandler(async (event) => {
     }
 
     // 逐个更新设置
-    for (const update of updates) {
+    const normalizedUpdates = await preserveBlankSecretUpdates(updates)
+
+    for (const update of normalizedUpdates) {
       try {
         await settingsManager.set(
           update.namespace,
@@ -122,6 +178,10 @@ export default eventHandler(async (event) => {
         updated: successCount,
         errors,
       }
+    }
+
+    if (encryptionEnabledUpdate) {
+      await enqueueExistingStorageEncryption()
     }
 
     return {
