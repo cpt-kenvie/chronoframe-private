@@ -1,18 +1,13 @@
 <script lang="ts" setup>
 import { motion } from 'motion-v'
+import type { DisplayPhoto } from '~/libs/panorama/photo-variants'
+import type { AlbumListItem } from '~/composables/useAlbums'
 
 const config = useRuntimeConfig()
 const route = useRoute()
 const { photos } = usePhotos()
-const { data: albums, refresh: refreshAlbums } = useAsyncData(
-  'albums',
-  // @ts-nocheck
-  () => $fetch('/api/albums'),
-  {
-    watch: [],
-    server: false,
-  },
-)
+const { data: albums, refresh: refreshAlbums } = useAlbums()
+await refreshAlbums()
 
 watch(() => route.path, async () => {
   if (route.path === '/albums') {
@@ -20,9 +15,16 @@ watch(() => route.path, async () => {
   }
 })
 
-// randomly pick 30 photos for waterfall
-const waterfallPhotos = computed(() =>
-  photos.value.toSorted(() => 0.5 - Math.random()).slice(0, 30),
+const waterfallPhotos = ref<DisplayPhoto[]>([])
+
+watch(
+  photos,
+  (value) => {
+    waterfallPhotos.value = [...value]
+      .sort(() => 0.5 - Math.random())
+      .slice(0, 30)
+  },
+  { immediate: true },
 )
 const isMobile = useMediaQuery('(max-width: 768px)')
 
@@ -65,10 +67,10 @@ const getPhotoById = (photoId: string) => {
   return photos.value.find((p) => p.id === photoId) || null
 }
 
-const getAlbumDisplayPhotos = (album: any) => {
+const getAlbumDisplayPhotos = (album: AlbumListItem) => {
   if (!album.photoIds || album.photoIds.length === 0) return []
 
-  const displayPhotos = []
+  const displayPhotos: DisplayPhoto[] = []
 
   // 第一张：优先使用封面照片
   if (album.coverPhotoId) {

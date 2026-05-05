@@ -10,6 +10,7 @@ const uploadTaskClassifier = await readFile('app/libs/upload-task-classifier.ts'
 const addTasksApi = await readFile('server/api/queue/add-tasks.post.ts', 'utf8')
 const photoFilters = await readFile('app/composables/usePhotoFilters.ts', 'utf8')
 const dashboardAlbums = await readFile('app/pages/dashboard/albums.vue', 'utf8')
+const publicAlbums = await readFile('app/pages/albums/index.vue', 'utf8')
 
 test('dashboard photo batch upload waits for each queued upload promise', () => {
   assert.match(photosPage, /await uploadImage\(file, fileId, validFiles\)/)
@@ -88,4 +89,9 @@ test('album uploads refresh album counts when membership changes', () => {
 
 test('dashboard album list stays loading until the first fetch completes', () => {
   assert.match(dashboardAlbums, /const isLoadingAlbums = ref\(true\)/)
+})
+
+test('public album list refreshes shared album data before rendering cached counts', () => {
+  assert.match(publicAlbums, /const \{ data: albums, refresh: refreshAlbums \} = useAlbums\(\)/)
+  assert.match(publicAlbums, /await refreshAlbums\(\)/)
 })

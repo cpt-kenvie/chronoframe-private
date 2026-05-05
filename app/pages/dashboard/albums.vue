@@ -55,7 +55,7 @@ const selectedPhotoIds = ref<string[]>([])
 const coverPhotoId = ref('')
 const photoSelectorSearchQuery = ref('')
 
-const validateForm = (state: any): FormError[] => {
+const validateForm = (state: AlbumFormState): FormError[] => {
   const errors: FormError[] = []
   if (!state.title?.trim()) {
     errors.push({
@@ -69,7 +69,7 @@ const validateForm = (state: any): FormError[] => {
 const loadAlbums = async () => {
   isLoadingAlbums.value = true
   try {
-    const response = await $fetch('/api/albums')
+    const response = await $fetch<AlbumListItem[]>('/api/albums')
     albums.value = response.map((album) => ({
       ...album,
       photoCount: album.photoIds?.length || 0,
