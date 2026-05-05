@@ -5,6 +5,7 @@ import assert from 'node:assert/strict'
 const nuxtConfig = await readFile('nuxt.config.ts', 'utf8')
 const envExample = await readFile('.env.example', 'utf8')
 const sessionPlugin = await readFile('server/plugins/0.session-password.ts', 'utf8')
+const settingsPlugin = await readFile('server/plugins/2.settings-manager.ts', 'utf8')
 
 test('runtime defaults use local storage when no env overrides are provided', () => {
   assert.match(nuxtConfig, /STORAGE_PROVIDER: 'local'/)
@@ -20,4 +21,16 @@ test('env example documents optional generated session password and local storag
 test('session password fallback persists generated secrets outside root env file', () => {
   assert.match(sessionPlugin, /const passwordFile = join\(dataDir, '\.session_password'\)/)
   assert.doesNotMatch(sessionPlugin, /writeFile\([^)]*'\.env'/)
+})
+
+test('runtime map provider default does not overwrite stored provider', () => {
+  assert.match(settingsPlugin, /process\.env\.NUXT_PUBLIC_MAP_PROVIDER/)
+  assert.doesNotMatch(settingsPlugin, /provider:\s*config\.public\.map\.provider/)
+})
+
+test('startup repairs default map provider when only amap is configured', () => {
+  assert.match(settingsPlugin, /repairMapProviderFromStoredCredentials/)
+  assert.match(settingsPlugin, /provider === 'maplibre'/)
+  assert.match(settingsPlugin, /amapKey && !maplibreToken && !maplibreStyle/)
+  assert.match(settingsPlugin, /settingsManager\.set\('map', 'provider', 'amap'/)
 })

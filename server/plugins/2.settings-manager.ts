@@ -1,5 +1,28 @@
 import { DEFAULT_SETTINGS } from '../services/settings/contants'
 import { settingsManager } from '../services/settings/settingsManager'
+import type { SettingValue } from '~~/shared/types/settings'
+
+type AppSettingMigration = {
+  key: 'title' | 'slogan' | 'author' | 'avatarUrl'
+  value: SettingValue
+}
+
+type MapSettingMigration = {
+  key:
+    | 'provider'
+    | 'mapbox.token'
+    | 'mapbox.style'
+    | 'maplibre.token'
+    | 'maplibre.style'
+    | 'amap.key'
+    | 'amap.securityCode'
+  value: SettingValue
+}
+
+type LocationSettingMigration = {
+  key: 'provider' | 'amap.key'
+  value: SettingValue
+}
 
 export default defineNitroPlugin(async (_nitroApp) => {
   const _settingsManager = settingsManager
@@ -15,10 +38,22 @@ export default defineNitroPlugin(async (_nitroApp) => {
     // Migrate existing configurations from runtimeConfig
     // Note: Storage manager will be initialized in the next plugin (2_storage.ts)
     await migrateRuntimeConfigToSettings()
+    await repairMapProviderFromStoredCredentials()
   } finally {
     _settingsManager.setInitializingFlag(false)
   }
 })
+
+async function repairMapProviderFromStoredCredentials() {
+  const provider = await settingsManager.get<string>('map', 'provider')
+  const amapKey = await settingsManager.get<string>('map', 'amap.key')
+  const maplibreToken = await settingsManager.get<string>('map', 'maplibre.token')
+  const maplibreStyle = await settingsManager.get<string>('map', 'maplibre.style')
+
+  if (provider === 'maplibre' && amapKey && !maplibreToken && !maplibreStyle) {
+    await settingsManager.set('map', 'provider', 'amap', undefined, true)
+  }
+}
 
 /**
  * Migrate existing configurations from runtimeConfig to the settings system
@@ -31,17 +66,17 @@ async function migrateRuntimeConfigToSettings() {
     // Migrate app settings
     if (config.public.app) {
       _logger.info('Migrating app settings')
-      const appSettings = {
-        title: config.public.app.title,
-        slogan: config.public.app.slogan,
-        author: config.public.app.author,
-        avatarUrl: config.public.app.avatarUrl,
-      }
+      const appSettings: AppSettingMigration[] = [
+        { key: 'title', value: config.public.app.title },
+        { key: 'slogan', value: config.public.app.slogan },
+        { key: 'author', value: config.public.app.author },
+        { key: 'avatarUrl', value: config.public.app.avatarUrl },
+      ]
       
-      for (const [key, value] of Object.entries(appSettings)) {
+      for (const { key, value } of appSettings) {
         if (value) {
           try {
-            await settingsManager.set('app', key as any, value, undefined, true)
+            await settingsManager.set('app', key, value, undefined, true)
             _logger.debug(`Migrated app.${key}`)
           } catch (error) {
             _logger.warn(`Failed to migrate app.${key}:`, error)
@@ -53,20 +88,26 @@ async function migrateRuntimeConfigToSettings() {
     // Migrate map settings
     if (config.public.map) {
       _logger.info('Migrating map settings')
-      const mapSettings = {
-        provider: config.public.map.provider,
-        'mapbox.token': config.mapbox?.accessToken || '',
-        'mapbox.style': config.public.map.mapbox?.style || '',
-        'maplibre.token': config.public.map.maplibre?.token || '',
-        'maplibre.style': config.public.map.maplibre?.style || '',
-        'amap.key': config.public.map.amap?.key || '',
-        'amap.securityCode': config.public.map.amap?.securityCode || '',
+      const mapSettings: MapSettingMigration[] = [
+        { key: 'mapbox.token', value: config.mapbox?.accessToken || '' },
+        { key: 'mapbox.style', value: config.public.map.mapbox?.style || '' },
+        { key: 'maplibre.token', value: config.public.map.maplibre?.token || '' },
+        { key: 'maplibre.style', value: config.public.map.maplibre?.style || '' },
+        { key: 'amap.key', value: config.public.map.amap?.key || '' },
+        { key: 'amap.securityCode', value: config.public.map.amap?.securityCode || '' },
+      ]
+
+      if (process.env.NUXT_PUBLIC_MAP_PROVIDER) {
+        mapSettings.unshift({
+          key: 'provider',
+          value: config.public.map.provider,
+        })
       }
 
-      for (const [key, value] of Object.entries(mapSettings)) {
+      for (const { key, value } of mapSettings) {
         if (value) {
           try {
-            await settingsManager.set('map', key as any, value, undefined, true)
+            await settingsManager.set('map', key, value, undefined, true)
             _logger.debug(`Migrated map.${key}`)
           } catch (error) {
             _logger.warn(`Failed to migrate map.${key}:`, error)
@@ -78,15 +119,15 @@ async function migrateRuntimeConfigToSettings() {
     // Migrate location settings
     if (config.location) {
       _logger.info('Migrating location settings')
-      const locationSettings = {
-        provider: config.location.provider || '',
-        'amap.key': config.location.amap?.key || '',
-      }
+      const locationSettings: LocationSettingMigration[] = [
+        { key: 'provider', value: config.location.provider || '' },
+        { key: 'amap.key', value: config.location.amap?.key || '' },
+      ]
 
-      for (const [key, value] of Object.entries(locationSettings)) {
+      for (const { key, value } of locationSettings) {
         if (value) {
           try {
-            await settingsManager.set('location', key as any, value, undefined, true)
+            await settingsManager.set('location', key, value, undefined, true)
             _logger.debug(`Migrated location.${key}`)
           } catch (error) {
             _logger.warn(`Failed to migrate location.${key}:`, error)
