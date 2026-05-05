@@ -703,12 +703,19 @@ export class QueueManager {
           }
 
           if (!matchedPhoto) {
-            this.logger.warn(
-              `LivePhoto 视频 ${videoKey} 没有匹配的照片`,
+            this.logger.info(
+              `LivePhoto 视频 ${videoKey} 没有匹配的照片，按普通视频处理`,
             )
-            throw new Error(
-              `LivePhoto 视频 ${videoKey} 没有匹配的照片`,
-            )
+            const videoTask: PipelineQueueItem = {
+              ...task,
+              payload: {
+                type: 'video',
+                storageKey: videoKey,
+                albumId: payload.albumId,
+              },
+            }
+            await this.processors.video(videoTask)
+            return
           }
 
           const livePhotoVideoUrl = toUrl(videoKey)
