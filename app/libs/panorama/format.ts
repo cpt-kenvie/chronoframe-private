@@ -46,3 +46,18 @@ export const isPanoramaByXmp = (exif?: NeededExif | null): boolean => {
   return false
 }
 
+type PanoramaPhotoLike = {
+  storageKey?: string | null
+  isPanorama360?: number | boolean | null
+  exif?: NeededExif | null
+}
+
+export const isPanoramaPhoto = (photo: PanoramaPhotoLike): boolean => {
+  return (
+    getPanoramaFormatFromStorageKey(photo.storageKey) !== null ||
+    photo.isPanorama360 === 1 ||
+    photo.isPanorama360 === true ||
+    isPanoramaByXmp(photo.exif)
+  )
+}
+

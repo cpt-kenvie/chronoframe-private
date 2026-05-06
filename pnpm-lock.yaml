@@ -107,6 +107,9 @@ importers:
       nuxt-og-image:
         specifier: 5.1.12
         version: 5.1.12(@unhead/vue@2.0.19(vue@3.5.22(typescript@5.9.3)))(h3@1.15.4)(magicast@0.3.5)(unstorage@1.17.1(db0@0.3.4(better-sqlite3@12.4.1)(drizzle-orm@0.44.6(@cloudflare/workers-types@4.20251011.0)(@opentelemetry/api@1.9.0)(@types/better-sqlite3@7.6.13)(better-sqlite3@12.4.1)))(ioredis@5.8.1))(vite@7.1.11(@types/node@24.9.0)(jiti@2.6.1)(lightningcss@1.30.2)(sass-embedded@1.93.2)(sass@1.93.2)(terser@5.44.0)(yaml@2.8.1))(vue@3.5.22(typescript@5.9.3))
+      parse-exr:
+        specifier: 1.0.2
+        version: 1.0.2
       pinia:
         specifier: ^3.0.3
         version: 3.0.3(typescript@5.9.3)(vue@3.5.22(typescript@5.9.3))
@@ -6340,6 +6343,10 @@ packages:
 
   parse-css-color@0.2.1:
     resolution: {integrity: sha512-bwS/GGIFV3b6KS4uwpzCFj4w297Yl3uqnSgIPsoQkx7GMLROXfMnWvxfNkL0oh8HVhZA4hvJoEoEIqonfJ3BWg==}
+
+  parse-exr@1.0.2:
+    resolution: {integrity: sha512-dgrTK6JxXJzhJz4cMgdCwAGzgslyHAvr6TzB2Wkgi0rT4cAEW6d0ExUtMdwrIWSRb3y7FKVAjYwo/9m5i0ZTRg==}
+    engines: {node: '>=22.0.0', npm: '>=10.5.1', snowdev: '>=2.2.x'}
 
   parse-imports-exports@0.2.4:
     resolution: {integrity: sha512-4s6vd6dx1AotCx/RCI2m7t7GCh5bDRUtGNvRfHSP2wbBQdMi67pPe7mtzmgwcaQ8VKK/6IB7Glfyu3qdZJPybQ==}
@@ -15749,6 +15756,10 @@ snapshots:
     dependencies:
       color-name: 1.1.4
       hex-rgb: 4.3.0
+
+  parse-exr@1.0.2:
+    dependencies:
+      fflate: 0.8.2
 
   parse-imports-exports@0.2.4:
     dependencies:

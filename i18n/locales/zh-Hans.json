@@ -562,6 +562,7 @@
           "noGps": "无 GPS 信息",
           "unknown": "未知",
           "staticPhoto": "一般照片",
+          "panoramaPhoto": "全景照片",
           "noReactions": "无表态"
         },
         "columnVisibility": {
@@ -667,6 +668,8 @@
         "uploadNetworkError": "网络连接失败或 CORS 错误。请检查网络连接和存储配置。",
         "uploadCorsError": "跨域请求失败。请检查存储服务的 CORS 配置。",
         "uploadUnauthorized": "未授权。请重新登录。",
+        "unsupportedExrCompression": "此 EXR 使用了暂不支持的压缩格式（{compression}）。请转换为 ZIP、ZIPS、PIZ、DWAA、DWAB 或未压缩 EXR 后重试。",
+        "panoramaDecodeFailed": "上传前无法解码此 EXR（{compression}）。请转换为 ZIP、ZIPS、PIZ、DWAA、DWAB 或未压缩 EXR 后重试。",
         "taskSubmitFailed": "提交处理任务失败",
         "taskStatusCheckFailed": "状态检查失败，请刷新页面重试"
       },

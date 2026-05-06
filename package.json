@@ -63,6 +63,7 @@
     "nuxt-mapbox": "1.6.4",
     "nuxt-maplibre": "^1.1.1",
     "nuxt-og-image": "5.1.12",
+    "parse-exr": "1.0.2",
     "pinia": "^3.0.3",
     "reka-ui": "^2.5.1",
     "sharp": "^0.34.4",

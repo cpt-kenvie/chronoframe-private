@@ -3,6 +3,7 @@ import type {
   PanoramaDecodeResult,
   PanoramaDecodeError,
 } from './types'
+import { PanoramaDecoderError } from './decode-error'
 
 export class PanoramaDecoderClient {
   private worker: Worker
@@ -23,7 +24,11 @@ export class PanoramaDecoderClient {
       if (!entry) return
       this.pending.delete(data.id)
       if ('message' in data && !('kind' in data)) {
-        entry.reject(new Error(data.message))
+        const error = new PanoramaDecoderError(data.message, {
+          code: data.code,
+          compression: data.compression,
+        })
+        entry.reject(error)
         return
       }
       entry.resolve(data as PanoramaDecodeResult)

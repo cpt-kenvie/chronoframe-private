@@ -11,6 +11,25 @@ import { getUploadQueueRank, getUploadTaskType } from '~/libs/upload-task-classi
 const UPLOAD_CONCURRENT_LIMIT = 3 // 同时上传的文件数量，避免批量上传占满浏览器和服务端资源
 const UPLOAD_PROGRESS_RENDER_INTERVAL_MS = 200 // 上传进度刷新到界面的最小间隔，降低大量文件时的重渲染频率
 const UPLOAD_REFRESH_DEBOUNCE_MS = 800 // 处理完成后合并刷新照片列表的等待时间，避免批量完成时连续刷新
+const getPanoramaDecodeErrorMessage = usePanoramaDecodeErrorMessage()
+
+const isRecord = (value: unknown): value is Record<string, unknown> => {
+  return typeof value === 'object' && value !== null
+}
+
+const getErrorMessage = (error: unknown, fallback: string): string => {
+  if (error instanceof Error && error.message) return error.message
+  if (typeof error === 'string' && error) return error
+  return fallback
+}
+
+const getDuplicateUploadTitle = (error: unknown): string | null => {
+  if (!isRecord(error) || error.statusCode !== 409 || !isRecord(error.data)) {
+    return null
+  }
+  if (error.data.duplicate !== true) return null
+  return typeof error.data.title === 'string' ? error.data.title : ''
+}
 
 interface UploadingFile {
   file: File
@@ -394,6 +413,7 @@ const uploadImage = async (
     panoramaFormat && file.type !== contentType
       ? new File([file], file.name, { type: contentType, lastModified: file.lastModified })
       : file
+  let panoramaThumbnail: Awaited<ReturnType<typeof createPanoramaThumbnail>> | null = null
 
   let uploadingFile = uploadingFiles.value.get(fileId)
   if (!uploadingFile) {
@@ -431,6 +451,17 @@ const uploadImage = async (
       uploadingFile.canAbort = false
       scheduleUploadQueueUpdate(true)
       return
+    }
+
+    if (panoramaFormat) {
+      uploadingFile.status = 'processing'
+      uploadingFile.stage = 'thumbnail'
+      uploadingFile.canAbort = false
+      scheduleUploadQueueUpdate(true)
+      panoramaThumbnail = await createPanoramaThumbnail({
+        file: uploadFile,
+        format: panoramaFormat,
+      })
     }
 
     uploadingFile.status = 'uploading'
@@ -475,14 +506,12 @@ const uploadImage = async (
               body: { storageKey: signedUrlResponse.fileKey },
             })
 
-            const { thumbnailBlob, thumbnailHash, width, height } =
-              await createPanoramaThumbnail({
-                file: uploadFile,
-                format: panoramaFormat,
-              })
+            if (!panoramaThumbnail) {
+              throw new Error('Panorama thumbnail is not ready')
+            }
 
             const thumbnailUpload = useUpload({ timeout: 2 * 60 * 1000 })
-            const thumbFile = new File([thumbnailBlob], `${prepare.photoId}.webp`, {
+            const thumbFile = new File([panoramaThumbnail.thumbnailBlob], `${prepare.photoId}.webp`, {
               type: 'image/webp',
             })
             const internalThumbUrl = `/api/photos/upload?key=${encodeURIComponent(prepare.thumbnailKey)}`
@@ -493,9 +522,9 @@ const uploadImage = async (
               body: {
                 storageKey: signedUrlResponse.fileKey,
                 thumbnailKey: prepare.thumbnailKey,
-                thumbnailHash,
-                width,
-                height,
+                thumbnailHash: panoramaThumbnail.thumbnailHash,
+                width: panoramaThumbnail.width,
+                height: panoramaThumbnail.height,
                 fileSize: uploadFile.size,
                 lastModified: new Date(uploadFile.lastModified).toISOString(),
                 title: uploadFile.name,
@@ -543,9 +572,9 @@ const uploadImage = async (
             uploadingFile.error = '任务提交失败'
             scheduleUploadQueueUpdate(true)
           }
-        } catch (processError: any) {
+        } catch (processError) {
           uploadingFile.status = 'error'
-          uploadingFile.error = `任务提交失败: ${processError.message}`
+          uploadingFile.error = `任务提交失败: ${getErrorMessage(processError, '未知错误')}`
           uploadingFile.canAbort = false
           scheduleUploadQueueUpdate(true)
         }
@@ -557,15 +586,19 @@ const uploadImage = async (
         scheduleUploadQueueUpdate(true)
       },
     })
-  } catch (error: any) {
+  } catch (error) {
     uploadingFile.status = 'error'
     uploadingFile.canAbort = false
 
-    if (error.statusCode === 409 && error.data?.duplicate) {
+    const panoramaDecodeErrorMessage = getPanoramaDecodeErrorMessage(error)
+    const duplicateUploadTitle = getDuplicateUploadTitle(error)
+    if (panoramaDecodeErrorMessage) {
+      uploadingFile.error = panoramaDecodeErrorMessage
+    } else if (duplicateUploadTitle !== null) {
       uploadingFile.status = 'blocked'
-      uploadingFile.error = error.data.title || '文件已存在'
+      uploadingFile.error = duplicateUploadTitle || '文件已存在'
     } else {
-      uploadingFile.error = error.message || '上传失败'
+      uploadingFile.error = getErrorMessage(error, '上传失败')
     }
 
     scheduleUploadQueueUpdate(true)

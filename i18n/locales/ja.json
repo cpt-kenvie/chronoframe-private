@@ -512,6 +512,7 @@
           "noGps": "GPS情報なし",
           "unknown": "不明",
           "staticPhoto": "静止画",
+          "panoramaPhoto": "パノラマ写真",
           "noReactions": "リアクションなし"
         },
         "columnVisibility": {
@@ -617,6 +618,8 @@
         "uploadNetworkError": "ネットワーク接続に失敗したか、CORSエラーが発生しました。ネットワークとストレージ設定を確認してください。",
         "uploadCorsError": "CORSリクエストに失敗しました。ストレージCORS設定を確認してください。",
         "uploadUnauthorized": "未認可です。もう一度ログインしてください。",
+        "unsupportedExrCompression": "This EXR uses unsupported compression ({compression}). Convert it to ZIP, ZIPS, PIZ, DWAA, DWAB, or uncompressed EXR and try again.",
+        "panoramaDecodeFailed": "Could not decode this EXR ({compression}) before upload. Convert it to ZIP, ZIPS, PIZ, DWAA, DWAB, or uncompressed EXR and try again.",
         "taskSubmitFailed": "処理タスクの送信に失敗しました",
         "taskStatusCheckFailed": "タスク状態の確認に失敗しました。ページを更新して再度お試しください。"
       },

@@ -1,5 +1,6 @@
 import { halfToFloat } from '../half-float'
 import type { PanoramaMetadata } from '../types'
+import { PanoramaDecoderError } from '../decode-error'
 
 type EXRDecodeResult = PanoramaMetadata & {
   decodeWidth: number
@@ -7,7 +8,18 @@ type EXRDecodeResult = PanoramaMetadata & {
   data: Float32Array
 }
 
-type EXRCompression = 'none' | 'zips' | 'zip'
+export type EXRCompression =
+  | 'none'
+  | 'rle'
+  | 'zips'
+  | 'zip'
+  | 'piz'
+  | 'pxr24'
+  | 'b44'
+  | 'b44a'
+  | 'dwaa'
+  | 'dwab'
+  | `unknown-${number}`
 type EXRPixelType = 0 | 1 | 2
 
 type EXRChannel = {
@@ -32,6 +44,29 @@ type SelectedChannels = {
   g?: number
   b?: number
   y?: number
+}
+
+const EXR_COMPRESSION_BY_CODE: Readonly<Record<number, EXRCompression>> = {
+  0: 'none',
+  1: 'rle',
+  2: 'zips',
+  3: 'zip',
+  4: 'piz',
+  5: 'pxr24',
+  6: 'b44',
+  7: 'b44a',
+  8: 'dwaa',
+  9: 'dwab',
+}
+
+const NATIVE_EXR_COMPRESSIONS: ReadonlySet<string> = new Set([
+  'none',
+  'zips',
+  'zip',
+])
+
+export const isNativeEXRCompression = (compression?: string): boolean => {
+  return compression ? NATIVE_EXR_COMPRESSIONS.has(compression) : true
 }
 
 const readNullTerminatedString = (bytes: Uint8Array, offset: number) => {
@@ -115,10 +150,7 @@ const parseHeader = (buffer: ArrayBuffer): EXRHeader => {
       channels = parseChannels(value)
     } else if (name === 'compression' && type === 'compression' && size === 1) {
       const c = value[0]!
-      if (c === 0) compression = 'none'
-      else if (c === 2) compression = 'zips'
-      else if (c === 3) compression = 'zip'
-      else throw new Error('Unsupported EXR compression')
+      compression = EXR_COMPRESSION_BY_CODE[c] ?? `unknown-${c}`
     } else if (name === 'tiles') {
       hasTiles = true
     }
@@ -146,7 +178,12 @@ const parseHeader = (buffer: ArrayBuffer): EXRHeader => {
 
 export const readEXRMetadata = (buffer: ArrayBuffer): PanoramaMetadata => {
   const header = parseHeader(buffer)
-  return { format: 'exr', width: header.width, height: header.height }
+  return {
+    format: 'exr',
+    width: header.width,
+    height: header.height,
+    compression: header.compression,
+  }
 }
 
 const splitChannelName = (name: string): { layer: string; component: string } => {
@@ -250,6 +287,15 @@ export const decodeEXRToFloatRGB = async (
   decodeHeight: number,
 ): Promise<EXRDecodeResult> => {
   const header = parseHeader(buffer)
+  if (!isNativeEXRCompression(header.compression)) {
+    throw new PanoramaDecoderError(
+      `Unsupported EXR compression: ${header.compression}`,
+      {
+        code: 'unsupported-exr-compression',
+        compression: header.compression,
+      },
+    )
+  }
   const view = new DataView(buffer)
 
   const width = header.width

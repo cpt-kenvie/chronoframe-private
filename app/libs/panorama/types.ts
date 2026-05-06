@@ -6,6 +6,7 @@ export interface PanoramaMetadata {
   format: PanoramaFormat
   width: number
   height: number
+  compression?: string
 }
 
 export type PanoramaDecodeTarget =
@@ -46,8 +47,14 @@ export type PanoramaDecodeResult =
       data: Uint8ClampedArray
     })
 
+export type PanoramaDecodeErrorCode =
+  | 'unsupported-exr-compression'
+  | 'panorama-decode-failed'
+
 export type PanoramaDecodeError = {
   id: string
   message: string
+  code?: PanoramaDecodeErrorCode
+  compression?: string
 }
 

@@ -9,6 +9,7 @@ import {
   getUploadContentTypeForPanorama,
   getPanoramaFormatFromStorageKey,
   isPanoramaByXmp,
+  isPanoramaPhoto,
 } from '~/libs/panorama/format'
 import { createPanoramaThumbnail } from '~/libs/panorama/thumbnail'
 import { buildUploadAccept, UPLOAD_ACCEPT_WHEN_WHITELIST_DISABLED } from '~/libs/upload-accept'
@@ -16,6 +17,30 @@ import { getUploadQueueRank, getUploadTaskType } from '~/libs/upload-task-classi
 
 const UCheckbox = resolveComponent('UCheckbox')
 const Rating = resolveComponent('Rating')
+const getPanoramaDecodeErrorMessage = usePanoramaDecodeErrorMessage()
+
+const isRecord = (value: unknown): value is Record<string, unknown> => {
+  return typeof value === 'object' && value !== null
+}
+
+const getErrorMessage = (error: unknown, fallback: string): string => {
+  if (error instanceof Error && error.message) return error.message
+  if (typeof error === 'string' && error) return error
+  return fallback
+}
+
+const getDuplicateUploadTitle = (error: unknown): string | null => {
+  if (!isRecord(error) || error.statusCode !== 409 || !isRecord(error.data)) {
+    return null
+  }
+  if (error.data.duplicate !== true) return null
+  return typeof error.data.title === 'string' ? error.data.title : ''
+}
+
+const getResponseStatus = (error: unknown): number | undefined => {
+  if (!isRecord(error) || !isRecord(error.response)) return undefined
+  return typeof error.response.status === 'number' ? error.response.status : undefined
+}
 
 // 列名显示映射
 const columnNameMap: Record<string, string> = {
@@ -370,6 +395,7 @@ const uploadImage = async (
     panoramaFormat && file.type !== contentType
       ? new File([file], file.name, { type: contentType, lastModified: file.lastModified })
       : file
+  let panoramaThumbnail: Awaited<ReturnType<typeof createPanoramaThumbnail>> | null = null
 
   // 获取或创建 uploadingFile
   let uploadingFile = uploadingFiles.value.get(fileId)
@@ -412,6 +438,17 @@ const uploadImage = async (
       uploadingFile.canAbort = false
       scheduleUploadQueueUpdate(true)
       return
+    }
+
+    if (panoramaFormat) {
+      uploadingFile.status = 'processing'
+      uploadingFile.stage = 'thumbnail'
+      uploadingFile.canAbort = false
+      scheduleUploadQueueUpdate(true)
+      panoramaThumbnail = await createPanoramaThumbnail({
+        file: uploadFile,
+        format: panoramaFormat,
+      })
     }
 
     uploadingFile.status = 'uploading'
@@ -458,14 +495,12 @@ const uploadImage = async (
               body: { storageKey: signedUrlResponse.fileKey },
             })
 
-            const { thumbnailBlob, thumbnailHash, width, height } =
-              await createPanoramaThumbnail({
-                file: uploadFile,
-                format: panoramaFormat,
-              })
+            if (!panoramaThumbnail) {
+              throw new Error('Panorama thumbnail is not ready')
+            }
 
             const thumbnailUpload = useUpload({ timeout: 2 * 60 * 1000 })
-            const thumbFile = new File([thumbnailBlob], `${prepare.photoId}.webp`, {
+            const thumbFile = new File([panoramaThumbnail.thumbnailBlob], `${prepare.photoId}.webp`, {
               type: 'image/webp',
             })
             const internalThumbUrl = `/api/photos/upload?key=${encodeURIComponent(prepare.thumbnailKey)}`
@@ -476,9 +511,9 @@ const uploadImage = async (
               body: {
                 storageKey: signedUrlResponse.fileKey,
                 thumbnailKey: prepare.thumbnailKey,
-                thumbnailHash,
-                width,
-                height,
+                thumbnailHash: panoramaThumbnail.thumbnailHash,
+                width: panoramaThumbnail.width,
+                height: panoramaThumbnail.height,
                 fileSize: uploadFile.size,
                 lastModified: new Date(uploadFile.lastModified).toISOString(),
                 title: uploadFile.name,
@@ -536,9 +571,12 @@ const uploadImage = async (
             )
             scheduleUploadQueueUpdate(true)
           }
-        } catch (processError: any) {
+        } catch (processError) {
           uploadingFile.status = 'error'
-          uploadingFile.error = `${$t('dashboard.photos.messages.taskSubmitFailed')}: ${processError.message}`
+          uploadingFile.error = `${$t('dashboard.photos.messages.taskSubmitFailed')}: ${getErrorMessage(
+            processError,
+            $t('dashboard.photos.messages.error'),
+          )}`
           uploadingFile.canAbort = false
           scheduleUploadQueueUpdate(true)
         }
@@ -550,34 +588,39 @@ const uploadImage = async (
         scheduleUploadQueueUpdate(true)
       },
     })
-  } catch (error: any) {
+  } catch (error) {
     uploadingFile.status = 'error'
     uploadingFile.canAbort = false
 
     // 处理重复文件阻止模式的错误
-    if (error.statusCode === 409 && error.data?.duplicate) {
+    const panoramaDecodeErrorMessage = getPanoramaDecodeErrorMessage(error)
+    const duplicateUploadTitle = getDuplicateUploadTitle(error)
+    if (panoramaDecodeErrorMessage) {
+      uploadingFile.error = panoramaDecodeErrorMessage
+    } else if (duplicateUploadTitle !== null) {
       uploadingFile.status = 'blocked'
       uploadingFile.error =
-        error.data.title || $t('upload.duplicate.block.title')
+        duplicateUploadTitle || $t('upload.duplicate.block.title')
     } else {
       // 其他错误
       uploadingFile.error =
-        error.message || $t('dashboard.photos.messages.uploadFailed')
+        getErrorMessage(error, $t('dashboard.photos.messages.uploadFailed'))
     }
 
     scheduleUploadQueueUpdate(true)
 
     // 提供更详细的错误信息
-    if (error.response?.status === 401) {
+    const errorMessage = getErrorMessage(error, '')
+    if (getResponseStatus(error) === 401) {
       uploadingFile.error = $t('dashboard.photos.errors.uploadUnauthorized')
-    } else if (error.message?.includes('CORS')) {
+    } else if (errorMessage.includes('CORS')) {
       uploadingFile.error = $t('dashboard.photos.errors.uploadCorsError')
     } else if (
-      error.message?.includes('NetworkError') ||
-      error.name === 'TypeError'
+      errorMessage.includes('NetworkError') ||
+      (error instanceof Error && error.name === 'TypeError')
     ) {
       uploadingFile.error = $t('dashboard.photos.errors.uploadNetworkError')
-    } else if (error.message?.includes('上传到存储失败')) {
+    } else if (errorMessage.includes('上传到存储失败')) {
       uploadingFile.error = $t('dashboard.photos.messages.uploadFailed')
     }
 
@@ -1193,6 +1236,7 @@ const columns: TableColumn<Photo>[] = [
     cell: ({ row }) => {
       const isLivePhoto = row.original.isLivePhoto
       const isVideo = row.original.isVideo
+      const isPanorama = isPanoramaPhoto(row.original)
 
       if (isVideo) {
         return h('div', { class: 'flex items-center gap-1' }, [
@@ -1206,6 +1250,22 @@ const columns: TableColumn<Photo>[] = [
               class: 'text-blue-600 dark:text-blue-400 text-xs font-medium',
             },
             '视频',
+          ),
+        ])
+      }
+
+      if (isPanorama) {
+        return h('div', { class: 'flex items-center gap-1' }, [
+          h(Icon, {
+            name: 'tabler:sphere',
+            class: 'size-4 text-emerald-600 dark:text-emerald-400',
+          }),
+          h(
+            'span',
+            {
+              class: 'text-emerald-600 dark:text-emerald-400 text-xs font-medium',
+            },
+            $t('dashboard.photos.table.cells.panoramaPhoto'),
           ),
         ])
       }
@@ -1236,8 +1296,14 @@ const columns: TableColumn<Photo>[] = [
       ])
     },
     sortingFn: (rowA, rowB) => {
-      const valueA = rowA.original.isLivePhoto ? 1 : 0
-      const valueB = rowB.original.isLivePhoto ? 1 : 0
+      const rank = (photo: Photo) => {
+        if (photo.isVideo) return 3
+        if (isPanoramaPhoto(photo)) return 2
+        if (photo.isLivePhoto) return 1
+        return 0
+      }
+      const valueA = rank(rowA.original)
+      const valueB = rank(rowB.original)
       return valueB - valueA
     },
   },

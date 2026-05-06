@@ -1,5 +1,11 @@
 import { decodeHDRToFloatRGB, readHDRMetadata } from '~/libs/panorama/hdr/decode'
-import { decodeEXRToFloatRGB, readEXRMetadata } from '~/libs/panorama/exr/decode'
+import {
+  decodeEXRToFloatRGB,
+  isNativeEXRCompression,
+  readEXRMetadata,
+} from '~/libs/panorama/exr/decode'
+import { decodeEXRWithParserFallback } from '~/libs/panorama/exr/parser-fallback'
+import { PanoramaDecoderError } from '~/libs/panorama/decode-error'
 import { floatToHalf } from '~/libs/panorama/half-float'
 import { linearToSRGB8 } from '~/libs/panorama/tone-map'
 import type {
@@ -63,6 +69,15 @@ const decodeToFloatRGB = async (
   if (req.format === 'hdr') {
     return decodeHDRToFloatRGB(req.buffer, decodeWidth, decodeHeight)
   }
+  const meta = readEXRMetadata(req.buffer)
+  if (!isNativeEXRCompression(meta.compression)) {
+    return await decodeEXRWithParserFallback(
+      req.buffer,
+      decodeWidth,
+      decodeHeight,
+      meta.compression,
+    )
+  }
   return await decodeEXRToFloatRGB(req.buffer, decodeWidth, decodeHeight)
 }
 
@@ -111,7 +126,12 @@ self.onmessage = async (event: MessageEvent<PanoramaDecodeRequest>) => {
     self.postMessage(result, transfer)
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
-    const error: PanoramaDecodeError = { id: req.id, message }
+    const error: PanoramaDecodeError = {
+      id: req.id,
+      message,
+      code: err instanceof PanoramaDecoderError ? err.code : undefined,
+      compression: err instanceof PanoramaDecoderError ? err.compression : undefined,
+    }
     self.postMessage(error)
   }
 }
