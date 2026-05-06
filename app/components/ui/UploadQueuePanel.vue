@@ -45,6 +45,7 @@ const emit = defineEmits<{
 }>()
 
 const isCollapsed = ref(props.collapsed ?? true)
+const isQueuePanelDismissed = ref(false)
 
 const stats = computed(() => {
   const files = Array.from(props.uploadingFiles.values())
@@ -53,6 +54,7 @@ const stats = computed(() => {
     active: number
     pending: number
     processed: number
+    removable: number
   } = {
     total: files.length,
     waiting: 0,
@@ -66,6 +68,7 @@ const stats = computed(() => {
     active: 0,
     pending: 0,
     processed: 0,
+    removable: 0,
   }
 
   for (const file of files) {
@@ -77,6 +80,15 @@ const stats = computed(() => {
       result.pending += 1
     } else {
       result.processed += 1
+    }
+
+    if (
+      file.status === 'completed' ||
+      file.status === 'error' ||
+      file.status === 'skipped' ||
+      file.status === 'blocked'
+    ) {
+      result.removable += 1
     }
   }
 
@@ -111,6 +123,10 @@ const processedProgress = computed(() => {
   return Math.round((stats.value.processed / stats.value.total) * 100)
 })
 
+const showCloseButton = computed(() => {
+  return isCollapsed.value || stats.value.processed === stats.value.total
+})
+
 const statusColor = computed(() => {
   if (stats.value.error > 0 || stats.value.blocked > 0) return 'error'
   if (stats.value.active > 0) return 'primary'
@@ -131,13 +147,30 @@ const clearCompletedFiles = () => {
 const clearAllFiles = () => {
   emit('clearAll')
 }
+
+const closeQueuePanel = () => {
+  if (stats.value.processed === stats.value.total) {
+    emit('clearAll')
+  } else {
+    isQueuePanelDismissed.value = true
+  }
+}
+
+watch(
+  () => props.uploadingFiles.size,
+  (size, previousSize) => {
+    if (size === 0 || size > previousSize) {
+      isQueuePanelDismissed.value = false
+    }
+  },
+)
 </script>
 
 <template>
   <Teleport to="body">
     <div
-      v-if="uploadingFiles.size > 0"
-      class="fixed bottom-2 inset-x-2 sm:inset-x-6 sm:bottom-6 sm:left-auto z-[9999] min-w-0 sm:w-md max-w-[calc(100vw-1rem)] upload-queue-panel"
+      v-if="uploadingFiles.size > 0 && !isQueuePanelDismissed"
+      class="fixed bottom-20 inset-x-2 sm:inset-x-auto sm:right-6 sm:bottom-6 z-[11000] min-w-0 sm:w-md max-w-[calc(100vw-1rem)] upload-queue-panel pointer-events-auto"
     >
       <div
         class="bg-white dark:bg-neutral-900 rounded-xl shadow-2xl border border-neutral-200 dark:border-neutral-700 overflow-hidden"
@@ -239,6 +272,16 @@ const clearAllFiles = () => {
                 {{ overallProgress }}%
               </div>
 
+              <UButton
+                v-if="showCloseButton"
+                size="xs"
+                variant="ghost"
+                color="neutral"
+                icon="tabler:x"
+                aria-label="关闭文件上传队列"
+                @click.stop="closeQueuePanel"
+              />
+
               <div
                 class="transition-transform duration-150"
                 :class="{ 'rotate-180': !isCollapsed }"
@@ -267,7 +310,7 @@ const clearAllFiles = () => {
 
         <div
           v-if="!isCollapsed"
-          class="max-h-[calc(100vh-14rem)] sm:max-h-[70vh] overflow-y-auto filelist-container"
+          class="max-h-[calc(100vh-18rem)] sm:max-h-[min(70vh,calc(100vh-12rem))] overflow-y-auto filelist-container"
         >
           <div class="p-2 space-y-2">
             <UploadQueueItem
@@ -281,7 +324,7 @@ const clearAllFiles = () => {
         </div>
 
         <div
-          v-if="!isCollapsed && (stats.completed > 0 || stats.error > 0)"
+          v-if="!isCollapsed && stats.removable > 0"
           class="p-3 border-t border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800/50"
         >
           <div class="flex items-center justify-between gap-2">

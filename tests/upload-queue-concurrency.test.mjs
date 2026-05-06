@@ -47,11 +47,30 @@ test('upload dialog hands progress off to the floating queue', () => {
   assert.match(uploadDialog, /<UploadQueuePanel/)
   assert.match(uploadDialog, /emit\('update:open', false\)\s*\n\s*void runQueuedUploads\(\)/)
   assert.match(uploadQueuePanel, /<Teleport to="body">/)
-  assert.match(uploadQueuePanel, /z-\[9999\]/)
+  assert.match(uploadQueuePanel, /z-\[11000\]/)
+  assert.match(uploadQueuePanel, /pointer-events-auto/)
+  assert.match(uploadQueuePanel, /sm:right-6/)
+  assert.doesNotMatch(uploadQueuePanel, /sm:left-auto/)
   assert.match(uploadQueuePanel, /props\.collapsed \?\? true/)
+  assert.match(uploadQueuePanel, /const showCloseButton = computed/)
+  assert.match(uploadQueuePanel, /const closeQueuePanel = \(\) =>/)
+  assert.match(uploadQueuePanel, /v-if="showCloseButton"/)
+  assert.match(uploadQueuePanel, /@click\.stop="closeQueuePanel"/)
   assert.doesNotMatch(uploadQueuePanel, /mode="popLayout"/)
   assert.doesNotMatch(uploadQueueItem, /particle/)
   assert.doesNotMatch(uploadQueueItem, /文件已成功上传并处理/)
+})
+
+test('floating upload queue clearing is isolated from pending drawer selections', () => {
+  for (const source of [photosPage, uploadDialog]) {
+    assert.match(source, /const isUploadQueueRemovableStatus =/)
+    assert.match(source, /if \(!isUploadQueueRemovableStatus\(uploadingFile\.status\)\)/)
+    const clearAllUploadMatch = source.match(/const clearAllUploads = \(\) => \{([\s\S]*?)\n\}/)
+    assert.ok(clearAllUploadMatch)
+    assert.match(clearAllUploadMatch[1], /clearCompletedUploads\(\)/)
+    assert.doesNotMatch(clearAllUploadMatch[1], /uploadingFiles\.value\.clear\(\)/)
+    assert.doesNotMatch(clearAllUploadMatch[1], /abortUpload/)
+  }
 })
 
 test('dashboard upload drawer closes after handing off to floating queue', () => {
@@ -89,6 +108,17 @@ test('album uploads refresh album counts when membership changes', () => {
 
 test('dashboard album list stays loading until the first fetch completes', () => {
   assert.match(dashboardAlbums, /const isLoadingAlbums = ref\(true\)/)
+})
+
+test('album cover picker is scoped to selected album photos', () => {
+  assert.match(dashboardAlbums, /const photoSelectorMode = ref<'photos' \| 'cover'>\('photos'\)/)
+  assert.match(dashboardAlbums, /const coverSelectablePhotos = computed/)
+  assert.match(dashboardAlbums, /return allPhotos\.value\.filter\(\(photo\) =>\s*selectedPhotoIds\.value\.includes\(photo\.id\),\s*\)/)
+  assert.match(dashboardAlbums, /const openCoverSelector = \(\) =>/)
+  assert.match(dashboardAlbums, /const openPhotoSelector = \(\) =>/)
+  assert.match(dashboardAlbums, /@click="openCoverSelector"/)
+  assert.match(dashboardAlbums, /@click="openPhotoSelector"/)
+  assert.match(dashboardAlbums, /v-for="photo in activePhotoSelectorPhotos"/)
 })
 
 test('public album list refreshes shared album data before rendering cached counts', () => {

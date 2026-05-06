@@ -54,6 +54,7 @@ const isSubmittingForm = ref(false)
 const selectedPhotoIds = ref<string[]>([])
 const coverPhotoId = ref('')
 const photoSelectorSearchQuery = ref('')
+const photoSelectorMode = ref<'photos' | 'cover'>('photos')
 
 const validateForm = (state: AlbumFormState): FormError[] => {
   const errors: FormError[] = []
@@ -253,7 +254,41 @@ const setCoverPhoto = (photoId: string) => {
   coverPhotoId.value = photoId
 }
 
+const handlePhotoSelectorItemClick = (photoId: string) => {
+  if (photoSelectorMode.value === 'cover') {
+    setCoverPhoto(photoId)
+    isPhotoSelectorOpen.value = false
+    return
+  }
+
+  togglePhotoSelection(photoId)
+}
+
+const openPhotoSelector = () => {
+  photoSelectorMode.value = 'photos'
+  isPhotoSelectorOpen.value = true
+}
+
+const openCoverSelector = () => {
+  photoSelectorMode.value = 'cover'
+  isPhotoSelectorOpen.value = true
+}
+
+const coverSelectablePhotos = computed(() => {
+  return allPhotos.value.filter((photo) =>
+    selectedPhotoIds.value.includes(photo.id),
+  )
+})
+
+const photoSelectorSourcePhotos = computed(() => {
+  return photoSelectorMode.value === 'cover'
+    ? coverSelectablePhotos.value
+    : allPhotos.value
+})
+
 const areAllPhotosSelected = computed(() => {
+  if (photoSelectorMode.value === 'cover') return false
+
   return (
     allPhotos.value.length > 0 &&
     selectedPhotoIds.value.length === allPhotos.value.length
@@ -261,6 +296,8 @@ const areAllPhotosSelected = computed(() => {
 })
 
 const areSomePhotosSelected = computed(() => {
+  if (photoSelectorMode.value === 'cover') return false
+
   return (
     selectedPhotoIds.value.length > 0 &&
     selectedPhotoIds.value.length < allPhotos.value.length
@@ -277,14 +314,17 @@ const toggleAllPhotos = () => {
 
 const filteredPhotos = computed(() => {
   const query = photoSelectorSearchQuery.value.toLowerCase()
-  if (!query) return allPhotos.value
+  const sourcePhotos = photoSelectorSourcePhotos.value
+  if (!query) return sourcePhotos
 
-  return allPhotos.value.filter(
+  return sourcePhotos.filter(
     (photo) =>
       (photo.title?.toLowerCase() || '').includes(query) ||
       (photo.description?.toLowerCase() || '').includes(query),
   )
 })
+
+const activePhotoSelectorPhotos = filteredPhotos
 
 onMounted(async () => {
   await Promise.all([loadPhotos(), loadAlbums()])
@@ -548,7 +588,7 @@ const columns: any[] = [
             <button
               v-else
               class="w-full h-48 bg-gray-100 dark:bg-neutral-800 flex flex-col items-center justify-center text-gray-500 hover:text-gray-600 dark:hover:text-gray-400 hover:bg-gray-200 dark:hover:bg-neutral-700 transition-colors cursor-pointer"
-              @click="isPhotoSelectorOpen = true"
+              @click="openCoverSelector"
             >
               <Icon
                 name="tabler:photo"
@@ -612,7 +652,7 @@ const columns: any[] = [
                   icon="tabler:photo-plus"
                   size="lg"
                   class="w-full"
-                  @click="isPhotoSelectorOpen = true"
+                  @click="openPhotoSelector"
                 >
                   {{
                     selectedPhotoIds.length > 0
@@ -722,7 +762,7 @@ const columns: any[] = [
                     >
                       {{
                         $t('dashboard.albums.modal.totalPhotos', {
-                          count: allPhotos.length,
+                        count: photoSelectorSourcePhotos.length,
                         })
                       }}
                       ·
@@ -754,6 +794,7 @@ const columns: any[] = [
                     class="flex-1 text-sm"
                   />
                   <div
+                    v-if="photoSelectorMode === 'photos'"
                     class="hidden sm:flex items-center gap-2 px-3 py-2 bg-gray-100 dark:bg-neutral-800 rounded-lg whitespace-nowrap"
                   >
                     <UCheckbox
@@ -766,7 +807,11 @@ const columns: any[] = [
                     }}</span>
                   </div>
                   <UButton
-                    v-show="!areAllPhotosSelected && allPhotos.length > 0"
+                    v-show="
+                      photoSelectorMode === 'photos' &&
+                      !areAllPhotosSelected &&
+                      allPhotos.length > 0
+                    "
                     class="sm:hidden"
                     size="sm"
                     color="neutral"
@@ -783,8 +828,8 @@ const columns: any[] = [
                 >
                   {{
                     $t('dashboard.albums.modal.searchResults', {
-                      current: filteredPhotos.length,
-                      total: allPhotos.length,
+                      current: activePhotoSelectorPhotos.length,
+                      total: photoSelectorSourcePhotos.length,
                     })
                   }}
                 </div>
@@ -792,14 +837,14 @@ const columns: any[] = [
 
               <div class="flex-1 overflow-y-auto p-2 sm:p-3 md:p-6">
                 <div
-                  v-if="filteredPhotos.length > 0"
+                  v-if="activePhotoSelectorPhotos.length > 0"
                   class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 sm:gap-3"
                 >
                   <div
-                    v-for="photo in filteredPhotos"
+                    v-for="photo in activePhotoSelectorPhotos"
                     :key="photo.id"
                     class="relative group cursor-pointer"
-                    @click="togglePhotoSelection(photo.id)"
+                    @click="handlePhotoSelectorItemClick(photo.id)"
                   >
                     <div
                       class="relative aspect-square rounded-lg overflow-hidden bg-gray-200 dark:bg-neutral-700 border-2 sm:border-3 transition-all"
@@ -923,7 +968,7 @@ const columns: any[] = [
                         {{ selectedPhotoIds.length }}
                       </span>
                       <span class="text-gray-600 dark:text-gray-400"
-                        >/ {{ allPhotos.length }}</span
+                        >/ {{ photoSelectorSourcePhotos.length }}</span
                       >
                     </div>
                     <div

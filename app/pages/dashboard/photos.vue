@@ -1,4 +1,4 @@
-<script lang="ts" setup>
+﻿<script lang="ts" setup>
 import type { FormSubmitEvent, TableColumn } from '@nuxt/ui'
 import type { Photo, PipelineQueueItem } from '~~/server/utils/db'
 import { h, resolveComponent } from 'vue'
@@ -42,7 +42,7 @@ const getResponseStatus = (error: unknown): number | undefined => {
   return typeof error.response.status === 'number' ? error.response.status : undefined
 }
 
-// 列名显示映射
+// 鍒楀悕鏄剧ず鏄犲皠
 const columnNameMap: Record<string, string> = {
   thumbnailUrl: $t('dashboard.photos.table.columns.thumbnail.title'),
   id: $t('dashboard.photos.table.columns.id'),
@@ -68,9 +68,9 @@ useHead({
   title: $t('title.photos'),
 })
 
-const UPLOAD_CONCURRENT_LIMIT = 3 // 同时上传的文件数量，避免批量上传占满浏览器和服务端资源
-const UPLOAD_PROGRESS_RENDER_INTERVAL_MS = 200 // 上传进度刷新到界面的最小间隔，降低大量文件时的重渲染频率
-const UPLOAD_REFRESH_DEBOUNCE_MS = 800 // 处理完成后合并刷新照片列表的等待时间，避免批量完成时连续刷新
+const UPLOAD_CONCURRENT_LIMIT = 3 // 鍚屾椂涓婁紶鐨勬枃浠舵暟閲忥紝閬垮厤鎵归噺涓婁紶鍗犳弧娴忚鍣ㄥ拰鏈嶅姟绔祫婧?
+const UPLOAD_PROGRESS_RENDER_INTERVAL_MS = 200 // 涓婁紶杩涘害鍒锋柊鍒扮晫闈㈢殑鏈€灏忛棿闅旓紝闄嶄綆澶ч噺鏂囦欢鏃剁殑閲嶆覆鏌撻鐜?
+const UPLOAD_REFRESH_DEBOUNCE_MS = 800 // 澶勭悊瀹屾垚鍚庡悎骞跺埛鏂扮収鐗囧垪琛ㄧ殑绛夊緟鏃堕棿锛岄伩鍏嶆壒閲忓畬鎴愭椂杩炵画鍒锋柊
 
 const maxFileSizeMbSetting = useSettingRef('storage:upload.maxSizeMb')
 const uploadMimeWhitelistEnabled = useSettingRef('upload:mime.whitelistEnabled')
@@ -127,11 +127,11 @@ const setReverseGeocodeLoading = (photoId: string, loading: boolean) => {
   }
 }
 
-// 表态数据
+// 琛ㄦ€佹暟鎹?
 const reactionsData = ref<Record<string, Record<string, number>>>({})
 const reactionsLoading = ref(false)
 
-// 获取表态数据
+// 鑾峰彇琛ㄦ€佹暟鎹?
 const fetchReactions = async (photoIds: string[]) => {
   if (photoIds.length === 0) return
 
@@ -142,7 +142,7 @@ const fetchReactions = async (photoIds: string[]) => {
     })
     reactionsData.value = data as Record<string, Record<string, number>>
   } catch (error) {
-    console.error('获取表态数据失败:', error)
+    console.error('鑾峰彇琛ㄦ€佹暟鎹け璐?', error)
   } finally {
     reactionsLoading.value = false
   }
@@ -383,7 +383,7 @@ const uploadImage = async (
   const fileId = existingFileId || `${Date.now()}-${fileName}`
 
   const uploadManager = useUpload({
-    timeout: 10 * 60 * 1000, // 10分钟超时
+    timeout: 10 * 60 * 1000, // 10鍒嗛挓瓒呮椂
   })
 
   const panoramaFormat = getPanoramaFormatFromName(file.name)
@@ -397,7 +397,7 @@ const uploadImage = async (
       : file
   let panoramaThumbnail: Awaited<ReturnType<typeof createPanoramaThumbnail>> | null = null
 
-  // 获取或创建 uploadingFile
+  // 鑾峰彇鎴栧垱寤?uploadingFile
   let uploadingFile = uploadingFiles.value.get(fileId)
   if (!uploadingFile) {
     uploadingFile = {
@@ -410,7 +410,7 @@ const uploadImage = async (
     }
     uploadingFiles.value.set(fileId, uploadingFile)
   } else {
-    // 更新现有条目的状态和回调
+    // 鏇存柊鐜版湁鏉＄洰鐨勭姸鎬佸拰鍥炶皟
     uploadingFile.status = 'preparing'
     uploadingFile.canAbort = false
     uploadingFile.abortUpload = () => uploadManager.abortUpload()
@@ -418,7 +418,7 @@ const uploadImage = async (
   }
 
   try {
-    // 第一步：获取预签名 URL
+    // 绗竴姝ワ細鑾峰彇棰勭鍚?URL
     uploadingFile.status = 'preparing'
     const signedUrlResponse = await $fetch('/api/photos', {
       method: 'POST',
@@ -431,14 +431,14 @@ const uploadImage = async (
     console.log('[upload] Signed URL response:', signedUrlResponse)
     uploadingFile.signedUrlResponse = signedUrlResponse
 
-    // 检查是否为跳过模式（重复文件）
+    // 妫€鏌ユ槸鍚︿负璺宠繃妯″紡锛堥噸澶嶆枃浠讹級
     if (signedUrlResponse.skipped) {
       uploadingFile.status = 'skipped'
       uploadingFile.progress = 100
       uploadingFile.canAbort = false
       scheduleUploadQueueUpdate(true)
       return
-    }
+      }
 
     if (panoramaFormat) {
       uploadingFile.status = 'processing'
@@ -456,7 +456,7 @@ const uploadImage = async (
     uploadingFile.progress = 0
     scheduleUploadQueueUpdate(true)
 
-    // 第二步：使用 composable 上传文件到存储
+    // 绗簩姝ワ細浣跨敤 composable 涓婁紶鏂囦欢鍒板瓨鍌?
     await uploadManager.uploadFile(uploadFile, signedUrlResponse.signedUrl, {
       onProgress: (progress: UploadProgress) => {
         uploadingFile.progress = progress.percentage
@@ -478,7 +478,7 @@ const uploadImage = async (
         scheduleUploadQueueUpdate(true)
       },
       onSuccess: async (_xhr: XMLHttpRequest) => {
-        // 第三步：上传完成，提交到队列任务
+        // 绗笁姝ワ細涓婁紶瀹屾垚锛屾彁浜ゅ埌闃熷垪浠诲姟
         uploadingFile.status = 'processing'
         uploadingFile.progress = 100
         uploadingFile.canAbort = false
@@ -592,7 +592,6 @@ const uploadImage = async (
     uploadingFile.status = 'error'
     uploadingFile.canAbort = false
 
-    // 处理重复文件阻止模式的错误
     const panoramaDecodeErrorMessage = getPanoramaDecodeErrorMessage(error)
     const duplicateUploadTitle = getDuplicateUploadTitle(error)
     if (panoramaDecodeErrorMessage) {
@@ -602,14 +601,14 @@ const uploadImage = async (
       uploadingFile.error =
         duplicateUploadTitle || $t('upload.duplicate.block.title')
     } else {
-      // 其他错误
+      // 鍏朵粬閿欒
       uploadingFile.error =
         getErrorMessage(error, $t('dashboard.photos.messages.uploadFailed'))
     }
 
     scheduleUploadQueueUpdate(true)
 
-    // 提供更详细的错误信息
+    // 鎻愪緵鏇磋缁嗙殑閿欒淇℃伅
     const errorMessage = getErrorMessage(error, '')
     if (getResponseStatus(error) === 401) {
       uploadingFile.error = $t('dashboard.photos.errors.uploadUnauthorized')
@@ -632,25 +631,25 @@ const toast = useToast()
 const selectedFiles = ref<File[]>([])
 const isUploadSlideoverOpen = ref(false)
 
-// 相册选择相关状态
+// 鐩稿唽閫夋嫨鐩稿叧鐘舵€?
 const selectedAlbumId = ref<number | null>(null)
 const isUploadingPhotos = ref(false)
 
 const albumOptions = computed(() => {
   if (!albums.value) return []
   return [
-    { label: '不添加到相册', value: null },
+    { label: '未添加到相册', value: null },
     ...albums.value.map((album) => ({
-      label: `${album.title} (${album.photoIds.length} 张照片)`,
+      label: `${album.title} (${album.photoIds.length} 寮犵収鐗?`,
       value: album.id,
     })),
   ]
 })
 
-// 跟踪当前批次上传完成的照片ID
+// 璺熻釜褰撳墠鎵规涓婁紶瀹屾垚鐨勭収鐗嘔D
 const currentBatchPhotoIds = ref<string[]>([])
 
-// 重复检查相关状态
+// 閲嶅妫€鏌ョ浉鍏崇姸鎬?
 interface DuplicateCheckResult {
   fileName: string
   exists: boolean
@@ -684,7 +683,7 @@ const selectedFilesSummary = computed(() => {
   })
 })
 
-// 统计新文件和已存在文件的数量
+// 缁熻鏂版枃浠跺拰宸插瓨鍦ㄦ枃浠剁殑鏁伴噺
 const newFilesCount = computed(() => {
   if (duplicateCheckResults.value.size === 0) {
     return selectedFiles.value.length
@@ -700,7 +699,7 @@ const existingFilesCount = computed(() => {
   ).length
 })
 
-// 批量检查文件是否已存在
+// 鎵归噺妫€鏌ユ枃浠舵槸鍚﹀凡瀛樺湪
 const checkDuplicateFiles = async (files: File[]) => {
   if (files.length === 0) return
 
@@ -712,10 +711,10 @@ const checkDuplicateFiles = async (files: File[]) => {
       body: { fileNames },
     })
 
-    // 清空之前的结果
+    // 娓呯┖涔嬪墠鐨勭粨鏋?
     duplicateCheckResults.value.clear()
 
-    // 存储检查结果
+    // 瀛樺偍妫€鏌ョ粨鏋?
     if (data.success && Array.isArray(data.results)) {
       data.results.forEach((result: any) => {
         duplicateCheckResults.value.set(result.fileName, {
@@ -726,17 +725,17 @@ const checkDuplicateFiles = async (files: File[]) => {
       })
     }
 
-    // 排序：新文件在前，已存在的在后
+    // 鎺掑簭锛氭柊鏂囦欢鍦ㄥ墠锛屽凡瀛樺湪鐨勫湪鍚?
     selectedFiles.value.sort((a, b) => {
       const aExists = duplicateCheckResults.value.get(a.name)?.exists
       const bExists = duplicateCheckResults.value.get(b.name)?.exists
       return (aExists ? 1 : 0) - (bExists ? 1 : 0)
     })
   } catch (error) {
-    console.error('检查重复文件失败:', error)
+    console.error('妫€鏌ラ噸澶嶆枃浠跺け璐?', error)
     toast.add({
       title: '检查失败',
-      description: '无法检查文件是否已存在，将继续上传',
+      description: '鏃犳硶妫€鏌ユ枃浠舵槸鍚﹀凡瀛樺湪锛屽皢缁х画涓婁紶',
       color: 'warning',
     })
   } finally {
@@ -749,13 +748,13 @@ const clearSelectedFiles = () => {
   duplicateCheckResults.value.clear()
 }
 
-// 监听文件选择变化，自动触发重复检查
+// 鐩戝惉鏂囦欢閫夋嫨鍙樺寲锛岃嚜鍔ㄨЕ鍙戦噸澶嶆鏌?
 watch(
   selectedFiles,
   async (newFiles, oldFiles) => {
     if (filteringSelectedFiles.value) return
 
-    // 只有当文件数量变化或文件内容变化时才触发检查
+    // 鍙湁褰撴枃浠舵暟閲忓彉鍖栨垨鏂囦欢鍐呭鍙樺寲鏃舵墠瑙﹀彂妫€鏌?
     if (newFiles.length > 0) {
       const maxSize = MAX_FILE_SIZE.value * 1024 * 1024
       const oversizedFiles = newFiles.filter((file) => file.size > maxSize)
@@ -781,7 +780,7 @@ watch(
         return
       }
 
-      // 检查是否真的有变化
+      // 妫€鏌ユ槸鍚︾湡鐨勬湁鍙樺寲
       const hasChanged =
         !oldFiles ||
         newFiles.length !== oldFiles.length ||
@@ -828,11 +827,11 @@ watch(isEditModalOpen, (open) => {
   }
 })
 
-// 表格多选状态
+// 琛ㄦ牸澶氶€夌姸鎬?
 const rowSelection = ref({})
 const table: any = useTemplateRef('table')
 
-// 列可见性状态默认值
+// 鍒楀彲瑙佹€х姸鎬侀粯璁ゅ€?
 const defaultColumnVisibility = {
   thumbnailUrl: true,
   id: true,
@@ -850,7 +849,7 @@ const defaultColumnVisibility = {
   albums: true,
 }
 
-// 从 localStorage 读取列可见性状态
+// 浠?localStorage 璇诲彇鍒楀彲瑙佹€х姸鎬?
 const loadColumnVisibility = () => {
   if (import.meta.client) {
     const saved = localStorage.getItem('photos-column-visibility')
@@ -858,17 +857,17 @@ const loadColumnVisibility = () => {
       try {
         return { ...defaultColumnVisibility, ...JSON.parse(saved) }
       } catch (e) {
-        console.error('解析列设置失败:', e)
-      }
+        console.error('瑙ｆ瀽鍒楄缃け璐?', e)
+    }
     }
   }
   return defaultColumnVisibility
 }
 
-// 列可见性状态
+// 鍒楀彲瑙佹€х姸鎬?
 const columnVisibility = ref(loadColumnVisibility())
 
-// 监听列可见性变化并保存到 localStorage
+// 鐩戝惉鍒楀彲瑙佹€у彉鍖栧苟淇濆瓨鍒?localStorage
 watch(columnVisibility, (newValue) => {
   if (import.meta.client) {
     localStorage.setItem('photos-column-visibility', JSON.stringify(newValue))
@@ -912,7 +911,7 @@ const filteredData = computed(() => {
   }
 })
 
-// 监听过滤后的照片变化，自动获取表态数据
+// 鐩戝惉杩囨护鍚庣殑鐓х墖鍙樺寲锛岃嚜鍔ㄨ幏鍙栬〃鎬佹暟鎹?
 watch(
   () => filteredData.value,
   async (photos) => {
@@ -924,10 +923,10 @@ watch(
   { immediate: true },
 )
 
-// 状态检查间隔 Map，每个任务对应一个定时器
+// 鐘舵€佹鏌ラ棿闅?Map锛屾瘡涓换鍔″搴斾竴涓畾鏃跺櫒
 const statusIntervals = ref<Map<number, NodeJS.Timeout>>(new Map())
 
-// 启动任务状态检查
+// 鍚姩浠诲姟鐘舵€佹鏌?
 const startTaskStatusCheck = (taskId: number, fileId: string) => {
   const intervalId = setInterval(async () => {
     try {
@@ -940,56 +939,56 @@ const startTaskStatusCheck = (taskId: number, fileId: string) => {
         return
       }
 
-      // 更新任务状态
+      // 鏇存柊浠诲姟鐘舵€?
       uploadingFile.stage =
         response.status === 'in-stages' ? response.statusStage : null
       scheduleUploadQueueUpdate()
 
       if (response.status === 'completed') {
-        // 任务完成
+        // 浠诲姟瀹屾垚
         uploadingFile.status = 'completed'
         uploadingFile.stage = null
         scheduleUploadQueueUpdate(true)
 
-        // 停止状态检查
+        // 鍋滄鐘舵€佹鏌?
         clearInterval(intervalId)
         statusIntervals.value.delete(taskId)
 
-        // 记录完成的照片ID
+        // 璁板綍瀹屾垚鐨勭収鐗嘔D
         const photoId = response.result?.photoId
         if (photoId && !currentBatchPhotoIds.value.includes(photoId)) {
           currentBatchPhotoIds.value.push(photoId)
         }
 
-        // 不再显示单独的成功提示，由上传组件统一处理
+        // 涓嶅啀鏄剧ず鍗曠嫭鐨勬垚鍔熸彁绀猴紝鐢变笂浼犵粍浠剁粺涓€澶勭悊
 
-        // 刷新照片列表
+        // 鍒锋柊鐓х墖鍒楄〃
         schedulePhotosRefresh()
         await notifyAlbumMembershipChanged()
 
-        // 2秒后从界面移除成功的任务
+        // 2绉掑悗浠庣晫闈㈢Щ闄ゆ垚鍔熺殑浠诲姟
         // setTimeout(() => {
         //   uploadingFiles.value.delete(fileId)
         //   uploadingFiles.value = new Map(uploadingFiles.value)
         // }, 2000)
       } else if (response.status === 'failed') {
-        // 任务失败
+        // 浠诲姟澶辫触
         uploadingFile.status = 'error'
         uploadingFile.error = `${$t('dashboard.photos.messages.error')}: ${response.errorMessage || $t('dashboard.photos.table.cells.unknown')}`
         uploadingFile.stage = null
         scheduleUploadQueueUpdate(true)
 
-        // 停止状态检查
+        // 鍋滄鐘舵€佹鏌?
         clearInterval(intervalId)
         statusIntervals.value.delete(taskId)
 
-        // 错误信息已在上传组件中显示，不需要额外通知
-        // 失败的任务不自动移除，让用户查看错误信息
+        // 閿欒淇℃伅宸插湪涓婁紶缁勪欢涓樉绀猴紝涓嶉渶瑕侀澶栭€氱煡
+        // 澶辫触鐨勪换鍔′笉鑷姩绉婚櫎锛岃鐢ㄦ埛鏌ョ湅閿欒淇℃伅
       }
     } catch (error) {
-      console.error('检查任务状态失败:', error)
+      console.error('妫€鏌ヤ换鍔＄姸鎬佸け璐?', error)
 
-      // 如果检查状态失败，清理定时器
+      // 濡傛灉妫€鏌ョ姸鎬佸け璐ワ紝娓呯悊瀹氭椂鍣?
       clearInterval(intervalId)
       statusIntervals.value.delete(taskId)
 
@@ -1002,16 +1001,16 @@ const startTaskStatusCheck = (taskId: number, fileId: string) => {
         scheduleUploadQueueUpdate(true)
       }
     }
-  }, 1000) // 每秒检查一次
+  }, 1000) // 姣忕妫€鏌ヤ竴娆?
 
   statusIntervals.value.set(taskId, intervalId)
 }
 
-// 手动移除上传任务
+// 鎵嬪姩绉婚櫎涓婁紶浠诲姟
 const removeUploadingFile = (fileId: string) => {
   const uploadingFile = uploadingFiles.value.get(fileId)
 
-  // 如果任务还在进行中，先清理定时器
+  // 濡傛灉浠诲姟杩樺湪杩涜涓紝鍏堟竻鐞嗗畾鏃跺櫒
   if (uploadingFile?.taskId) {
     const intervalId = statusIntervals.value.get(uploadingFile.taskId)
     if (intervalId) {
@@ -1020,31 +1019,35 @@ const removeUploadingFile = (fileId: string) => {
     }
   }
 
-  // 从列表中移除
+  // 浠庡垪琛ㄤ腑绉婚櫎
   uploadingFiles.value.delete(fileId)
   uploadingFiles.value = new Map(uploadingFiles.value)
 }
 
-// 批量清除已完成和错误的任务
+// 鎵归噺娓呴櫎宸插畬鎴愬拰閿欒鐨勪换鍔?
+const isUploadQueueRemovableStatus = (status: UploadingFile['status']) =>
+  status === 'completed' ||
+  status === 'error' ||
+  status === 'skipped' ||
+  status === 'blocked'
+
 const clearCompletedTasks = () => {
   const toRemove: string[] = []
 
   for (const [fileId, uploadingFile] of uploadingFiles.value) {
-    if (
-      uploadingFile.status === 'completed' ||
-      uploadingFile.status === 'error'
-    ) {
-      toRemove.push(fileId)
+    if (!isUploadQueueRemovableStatus(uploadingFile.status)) {
+      continue
+    }
+    toRemove.push(fileId)
 
-      // 清理可能存在的定时器
-      if (uploadingFile.taskId) {
-        const intervalId = statusIntervals.value.get(uploadingFile.taskId)
-        if (intervalId) {
-          clearInterval(intervalId)
-          statusIntervals.value.delete(uploadingFile.taskId)
+      // 娓呯悊鍙兘瀛樺湪鐨勫畾鏃跺櫒
+    if (uploadingFile.taskId) {
+      const intervalId = statusIntervals.value.get(uploadingFile.taskId)
+      if (intervalId) {
+        clearInterval(intervalId)
+        statusIntervals.value.delete(uploadingFile.taskId)
         }
       }
-    }
   }
 
   toRemove.forEach((fileId) => {
@@ -1064,45 +1067,14 @@ const clearCompletedTasks = () => {
   }
 }
 
-// 清除已完成的上传
+// 娓呴櫎宸插畬鎴愮殑涓婁紶
 const clearCompletedUploads = () => {
   clearCompletedTasks()
 }
 
-// 清除所有上传
+// 娓呴櫎鎵€鏈変笂浼?
 const clearAllUploads = () => {
-  const toRemove: string[] = []
-
-  for (const [fileId, uploadingFile] of uploadingFiles.value) {
-    toRemove.push(fileId)
-
-    // 如果是正在上传的任务，先中止
-    if (uploadingFile.status === 'uploading' && uploadingFile.abortUpload) {
-      uploadingFile.abortUpload()
-    }
-
-    // 清理状态检查定时器
-    if (uploadingFile.taskId) {
-      const intervalId = statusIntervals.value.get(uploadingFile.taskId)
-      if (intervalId) {
-        clearInterval(intervalId)
-        statusIntervals.value.delete(uploadingFile.taskId)
-      }
-    }
-  }
-
-  uploadingFiles.value.clear()
-  uploadingFiles.value = new Map(uploadingFiles.value)
-
-  if (toRemove.length > 0) {
-    toast.add({
-      title: $t('dashboard.photos.uploadQueue.allTasksCleared'),
-      description: $t('dashboard.photos.uploadQueue.tasksCleared', {
-        count: toRemove.length,
-      }),
-      color: 'info',
-    })
-  }
+  clearCompletedUploads()
 }
 
 const columns: TableColumn<Photo>[] = [
@@ -1249,7 +1221,7 @@ const columns: TableColumn<Photo>[] = [
             {
               class: 'text-blue-600 dark:text-blue-400 text-xs font-medium',
             },
-            '视频',
+            '瑙嗛',
           ),
         ])
       }
@@ -1399,7 +1371,7 @@ const columns: TableColumn<Photo>[] = [
         sparkle: 'fluent-emoji-flat:sparkles',
       }
 
-      // 显示前3个有数据的表态
+      // 鏄剧ず鍓?涓湁鏁版嵁鐨勮〃鎬?
       const topReactions = Object.entries(reactions)
         .filter(([_, count]) => (count as number) > 0)
         .sort((a, b) => (b[1] as number) - (a[1] as number))
@@ -1492,7 +1464,7 @@ const columns: TableColumn<Photo>[] = [
   },
 ]
 
-// 文件验证函数
+// 鏂囦欢楠岃瘉鍑芥暟
 const validateFile = (file: File): { valid: boolean; error?: string } => {
   const allowedImageTypes = [
     'image/jpeg',
@@ -1626,15 +1598,15 @@ const handleUpload = async () => {
           await notifyAlbumMembershipChanged()
 
           toast.add({
-            title: '添加成功',
-            description: `已将 ${skippedPhotoIds.length} 张已存在的照片添加到相册`,
+            title: '娣诲姞鎴愬姛',
+            description: `宸插皢 ${skippedPhotoIds.length} 寮犲凡瀛樺湪鐨勭収鐗囨坊鍔犲埌鐩稿唽`,
             color: 'success',
           })
         } catch (error) {
-          console.error('添加照片到相册失败:', error)
+          console.error('娣诲姞鐓х墖鍒扮浉鍐屽け璐?', error)
           toast.add({
             title: '添加到相册失败',
-            description: '无法将照片添加到相册',
+            description: '鏃犳硶灏嗙収鐗囨坊鍔犲埌鐩稿唽',
             color: 'error',
           })
         }
@@ -1646,8 +1618,8 @@ const handleUpload = async () => {
 
       if (skippedFiles.length > 0 || oversizedFiles.length > 0) {
         toast.add({
-          title: '没有需要上传的文件',
-          description: '所有文件都已存在或超过大小限制',
+          title: '娌℃湁闇€瑕佷笂浼犵殑鏂囦欢',
+          description: '鎵€鏈夋枃浠堕兘宸插瓨鍦ㄦ垨瓒呰繃澶у皬闄愬埗',
           color: 'warning',
         })
       } else {
@@ -1686,8 +1658,8 @@ const handleUpload = async () => {
       try {
         await uploadImage(file, fileId, validFiles)
       } catch (error: any) {
-        errors.push(`${file.name}: ${error.message || '上传失败'}`)
-        console.error('上传错误:', error)
+        errors.push(`${file.name}: ${error.message || '涓婁紶澶辫触'}`)
+        console.error('涓婁紶閿欒:', error)
       }
     }
 
@@ -1717,20 +1689,20 @@ const handleUpload = async () => {
         await processQueue()
 
         if (errors.length > 0) {
-          console.error('批量上传错误详情:', errors)
+          console.error('鎵归噺涓婁紶閿欒璇︽儏:', errors)
         }
 
-        // 如果选择了相册，显示提示信息
+        // 濡傛灉閫夋嫨浜嗙浉鍐岋紝鏄剧ず鎻愮ず淇℃伅
         if (selectedAlbumId.value) {
           const totalFiles = validFiles.length + skippedPhotoIds.length
           toast.add({
             title: '上传任务已提交',
-            description: `${totalFiles} 个文件已提交处理，完成后将自动添加到相册`,
+            description: `${totalFiles} 涓枃浠跺凡鎻愪氦澶勭悊锛屽畬鎴愬悗灏嗚嚜鍔ㄦ坊鍔犲埌鐩稿唽`,
             color: 'success',
           })
         }
 
-        // 如果有跳过的文件且选择了相册，立即添加到相册
+        // 濡傛灉鏈夎烦杩囩殑鏂囦欢涓旈€夋嫨浜嗙浉鍐岋紝绔嬪嵆娣诲姞鍒扮浉鍐?
         if (selectedAlbumId.value && skippedPhotoIds.length > 0) {
           try {
             await $fetch(`/api/albums/${selectedAlbumId.value}/photos`, {
@@ -1741,7 +1713,7 @@ const handleUpload = async () => {
             })
             await notifyAlbumMembershipChanged()
           } catch (error) {
-            console.error('添加已存在照片到相册失败:', error)
+            console.error('娣诲姞宸插瓨鍦ㄧ収鐗囧埌鐩稿唽澶辫触:', error)
           }
         }
 
@@ -1875,7 +1847,7 @@ const saveMetadataChanges = async () => {
     await refresh()
     isEditModalOpen.value = false
   } catch (error: any) {
-    console.error('更新照片信息失败:', error)
+    console.error('鏇存柊鐓х墖淇℃伅澶辫触:', error)
     const message =
       error?.data?.statusMessage ||
       error?.statusMessage ||
@@ -1962,7 +1934,7 @@ const handleReverseGeocodeRequest = async (photo: Photo) => {
   }
 }
 
-// 重新处理单张照片
+// 閲嶆柊澶勭悊鍗曞紶鐓х墖
 const handleReprocessSingle = async (photo: Photo) => {
   try {
     if (!photo || !photo.storageKey) {
@@ -2008,7 +1980,7 @@ const handleReprocessSingle = async (photo: Photo) => {
       })
     }
   } catch (error: any) {
-    console.error('处理照片失败:', error)
+    console.error('澶勭悊鐓х墖澶辫触:', error)
     toast.add({
       title: $t('dashboard.photos.messages.reprocessFailed'),
       description: error.message || $t('dashboard.photos.messages.error'),
@@ -2070,7 +2042,7 @@ const getRowActions = (photo: Photo) => {
   ]
 }
 
-// 添加到相册对话框
+// 娣诲姞鍒扮浉鍐屽璇濇
 const isAddToAlbumsDialogOpen = ref(false)
 const targetPhoto = ref<Photo | null>(null)
 const selectedAlbumIds = ref<number[]>([])
@@ -2116,7 +2088,7 @@ const handleAddToAlbums = async () => {
     ])
 
     toast.add({
-      title: '添加成功',
+      title: '娣诲姞鎴愬姛',
       description: `已将照片添加到 ${selectedAlbumIds.value.length} 个相册`,
       color: 'success',
     })
@@ -2125,9 +2097,9 @@ const handleAddToAlbums = async () => {
     await refresh()
     await refreshAlbums()
   } catch (error) {
-    console.error('添加到相册失败:', error)
+    console.error('娣诲姞鍒扮浉鍐屽け璐?', error)
     toast.add({
-      title: '添加失败',
+      title: '娣诲姞澶辫触',
       description: '请稍后重试',
       color: 'error',
     })
@@ -2136,7 +2108,7 @@ const handleAddToAlbums = async () => {
   }
 }
 
-// 图片预览弹窗
+// 鍥剧墖棰勮寮圭獥
 const isImagePreviewOpen = ref(false)
 const previewingPhoto = ref<Photo | null>(null)
 const isPanoramaPreviewOpen = ref(false)
@@ -2176,7 +2148,7 @@ const handleSingleDeleteRequest = (photo: Photo) => {
   openDeleteConfirm('single', [photo])
 }
 
-// 批量删除功能
+// 鎵归噺鍒犻櫎鍔熻兘
 const handleBatchDelete = () => {
   const selectedRowModel = table.value?.tableApi?.getFilteredSelectedRowModel()
   const selectedPhotos =
@@ -2252,7 +2224,7 @@ const confirmDelete = async () => {
     isDeleteConfirmOpen.value = false
     deleteTargetPhotos.value = []
   } catch (error: any) {
-    console.error('删除照片失败:', error)
+    console.error('鍒犻櫎鐓х墖澶辫触:', error)
     const message = error?.message || $t('dashboard.photos.messages.error')
 
     if (mode === 'batch' && deleteToast) {
@@ -2273,7 +2245,7 @@ const confirmDelete = async () => {
   isDeleting.value = false
 }
 
-// 批量重新处理照片功能
+// 鎵归噺閲嶆柊澶勭悊鐓х墖鍔熻兘
 const handleBatchReprocess = async () => {
   const selectedRowModel = table.value?.tableApi?.getFilteredSelectedRowModel()
   const selectedPhotos =
@@ -2288,7 +2260,7 @@ const handleBatchReprocess = async () => {
     return
   }
 
-  // 检查所有选中照片是否都有 storageKey
+  // 妫€鏌ユ墍鏈夐€変腑鐓х墖鏄惁閮芥湁 storageKey
   const photosWithStorageKey = selectedPhotos.filter(
     (photo: Photo) => photo.storageKey,
   )
@@ -2340,10 +2312,10 @@ const handleBatchReprocess = async () => {
       })
     }
 
-    // 清空选中状态
+    // 娓呯┖閫変腑鐘舵€?
     rowSelection.value = {}
   } catch (error: any) {
-    console.error('批量处理失败:', error)
+    console.error('鎵归噺澶勭悊澶辫触:', error)
     toast.add({
       title: $t('dashboard.photos.messages.batchReprocessFailed'),
       description: error.message || $t('dashboard.photos.messages.error'),
@@ -2352,7 +2324,7 @@ const handleBatchReprocess = async () => {
   }
 }
 
-// 批量下载照片
+// 鎵归噺涓嬭浇鐓х墖
 const handleBatchDownload = async () => {
   const selectedRowModel = table.value?.tableApi?.getFilteredSelectedRowModel()
   const selectedPhotos =
@@ -2367,7 +2339,7 @@ const handleBatchDownload = async () => {
     return
   }
 
-  // 检查所有选中照片是否都有 originalUrl
+  // 妫€鏌ユ墍鏈夐€変腑鐓х墖鏄惁閮芥湁 originalUrl
   const photosWithUrl = selectedPhotos.filter(
     (photo: Photo) => photo.originalUrl,
   )
@@ -2423,7 +2395,7 @@ const handleBatchDownload = async () => {
         window.URL.revokeObjectURL(url)
         successCount++
 
-        // 为了避免浏览器限制，每个下载之间加入短延迟
+        // 涓轰簡閬垮厤娴忚鍣ㄩ檺鍒讹紝姣忎釜涓嬭浇涔嬮棿鍔犲叆鐭欢杩?
         await new Promise((resolve) => setTimeout(resolve, 200))
       } catch (error) {
         console.error(`Failed to download photo ${photo.id}:`, error)
@@ -2431,7 +2403,7 @@ const handleBatchDownload = async () => {
       }
     }
 
-    // 更新提示信息
+    // 鏇存柊鎻愮ず淇℃伅
     if (successCount === photosWithUrl.length) {
       toast.update(downloadToast.id, {
         title: $t('dashboard.photos.messages.batchDownloadSuccess'),
@@ -2459,7 +2431,7 @@ const handleBatchDownload = async () => {
       })
     }
   } catch (error: any) {
-    console.error('批量下载出错:', error)
+    console.error('鎵归噺涓嬭浇鍑洪敊:', error)
     toast.update(downloadToast.id, {
       title: $t('dashboard.photos.messages.error'),
       description: error.message || $t('dashboard.photos.messages.error'),
@@ -2474,7 +2446,7 @@ watch(isImagePreviewOpen, (open) => {
   }
 })
 
-// 监听路由变化，刷新数据
+// 鐩戝惉璺敱鍙樺寲锛屽埛鏂版暟鎹?
 watch(() => route.path, async () => {
   if (route.path === '/dashboard/photos') {
     await refresh()
@@ -2484,7 +2456,7 @@ watch(() => route.path, async () => {
   }
 })
 
-// 清理定时器
+// 娓呯悊瀹氭椂鍣?
 onUnmounted(() => {
   if (uploadQueueUpdateTimer) {
     clearTimeout(uploadQueueUpdateTimer)
@@ -2492,7 +2464,7 @@ onUnmounted(() => {
   if (photosRefreshTimer) {
     clearTimeout(photosRefreshTimer)
   }
-  // 清理所有状态检查定时器
+  // 娓呯悊鎵€鏈夌姸鎬佹鏌ュ畾鏃跺櫒
   statusIntervals.value.forEach((intervalId) => {
     clearInterval(intervalId)
   })
@@ -2508,7 +2480,7 @@ onUnmounted(() => {
 
     <template #body>
       <div class="flex flex-col gap-3">
-        <!-- 上传队列容器 -->
+        <!-- 涓婁紶闃熷垪瀹瑰櫒 -->
         <UploadQueuePanel
           :uploading-files="uploadingFiles"
           @remove-file="removeUploadingFile"
@@ -2517,7 +2489,7 @@ onUnmounted(() => {
           @go-to-queue="$router.push('/dashboard/queue')"
         />
 
-        <!-- 文件上传入口 -->
+        <!-- 鏂囦欢涓婁紶鍏ュ彛 -->
         <div
           class="relative overflow-hidden rounded-3xl border border-neutral-200/80 bg-linear-to-br from-white via-white to-neutral-50 shadow-sm transition dark:border-neutral-800/70 dark:from-neutral-900 dark:via-neutral-900/80 dark:to-neutral-900"
         >
@@ -2643,10 +2615,10 @@ onUnmounted(() => {
         >
           <template #body>
             <div class="space-y-4">
-              <!-- 目标相册选择器 -->
+              <!-- 鐩爣鐩稿唽閫夋嫨鍣?-->
               <div class="px-4 py-3 bg-neutral-50 dark:bg-neutral-900/50 rounded-2xl border border-neutral-200 dark:border-neutral-800">
                 <label class="text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2 block">
-                  目标相册（可选）
+                  鐩爣鐩稿唽锛堝彲閫夛級
                 </label>
                 <USelectMenu
                   v-model="selectedAlbumId"
@@ -2657,11 +2629,11 @@ onUnmounted(() => {
                   class="w-full"
                 />
                 <p class="text-xs text-neutral-500 dark:text-neutral-400 mt-2">
-                  上传完成后，照片将自动添加到选中的相册
+                  涓婁紶瀹屾垚鍚庯紝鐓х墖灏嗚嚜鍔ㄦ坊鍔犲埌閫変腑鐨勭浉鍐?
                 </p>
               </div>
 
-              <!-- 文件拖拽上传区域 - 防止被压缩 -->
+              <!-- 鏂囦欢鎷栨嫿涓婁紶鍖哄煙 - 闃叉琚帇缂?-->
               <div class="flex-shrink-0">
                 <UFileUpload
                   v-model="selectedFiles"
@@ -2690,7 +2662,7 @@ onUnmounted(() => {
                 />
               </div>
 
-              <!-- 检查中的加载状态 -->
+              <!-- 妫€鏌ヤ腑鐨勫姞杞界姸鎬?-->
               <div
                 v-if="checkingDuplicates"
                 class="flex items-center justify-center gap-2 py-4 text-sm text-neutral-500 dark:text-neutral-400"
@@ -2699,17 +2671,17 @@ onUnmounted(() => {
                   name="tabler:loader-2"
                   class="size-4 animate-spin"
                 />
-                <span>正在检查文件是否已存在...</span>
+                <span>姝ｅ湪妫€鏌ユ枃浠舵槸鍚﹀凡瀛樺湪...</span>
               </div>
 
-              <!-- 统一的文件列表 -->
+              <!-- 缁熶竴鐨勬枃浠跺垪琛?-->
               <div
                 v-if="selectedFiles.length > 0"
                 class="space-y-2"
               >
                 <div class="flex items-center justify-between px-2">
                   <span class="text-sm font-medium text-neutral-700 dark:text-neutral-300">
-                    已选择 {{ selectedFiles.length }} 个文件
+                    宸查€夋嫨 {{ selectedFiles.length }} 涓枃浠?
                   </span>
                   <div
                     v-if="duplicateCheckResults.size > 0"
@@ -2721,7 +2693,7 @@ onUnmounted(() => {
                       color="success"
                       size="sm"
                     >
-                      {{ newFilesCount }} 个新文件
+                      {{ newFilesCount }} 涓柊鏂囦欢
                     </UBadge>
                     <UBadge
                       v-if="existingFilesCount > 0"
@@ -2729,7 +2701,7 @@ onUnmounted(() => {
                       color="neutral"
                       size="sm"
                     >
-                      {{ existingFilesCount }} 个已存在
+                      {{ existingFilesCount }} 涓凡瀛樺湪
                     </UBadge>
                   </div>
                 </div>
@@ -2773,7 +2745,7 @@ onUnmounted(() => {
                             color="neutral"
                             size="xs"
                           >
-                            已存在
+                            宸插瓨鍦?
                           </UBadge>
                         </div>
                         <span class="text-xs text-neutral-500 dark:text-neutral-400">
@@ -2831,13 +2803,13 @@ onUnmounted(() => {
                   @click="handleUpload"
                 >
                   <template v-if="isUploadingPhotos">
-                    上传中...
+                    涓婁紶涓?..
                   </template>
                   <template v-else-if="checkingDuplicates">
-                    检查中...
+                    妫€鏌ヤ腑...
                   </template>
                   <template v-else-if="hasSelectedFiles && existingFilesCount > 0">
-                    上传 {{ newFilesCount }} 个文件（跳过 {{ existingFilesCount }} 个）
+                    涓婁紶 {{ newFilesCount }} 涓枃浠讹紙璺宠繃 {{ existingFilesCount }} 涓級
                   </template>
                   <template v-else-if="hasSelectedFiles">
                     {{
@@ -2855,7 +2827,7 @@ onUnmounted(() => {
           </template>
         </USlideover>
 
-        <!-- 工具栏 -->
+        <!-- 宸ュ叿鏍?-->
         <div
           class="flex flex-row sm:items-center justify-between gap-3 sm:gap-0 p-3 sm:p-4 bg-neutral-50 dark:bg-neutral-900/50 border border-neutral-200 dark:border-neutral-700 rounded-lg"
         >
@@ -2924,7 +2896,7 @@ onUnmounted(() => {
                 </UCard>
               </template>
             </UPopover>
-            <!-- 过滤器 -->
+            <!-- 杩囨护鍣?-->
             <USelectMenu
               v-model="photoFilter"
               class="w-full sm:w-48"
@@ -2951,7 +2923,7 @@ onUnmounted(() => {
             >
             </USelectMenu>
 
-            <!-- 刷新按钮 -->
+            <!-- 鍒锋柊鎸夐挳 -->
             <UButton
               variant="soft"
               color="info"
@@ -2972,7 +2944,7 @@ onUnmounted(() => {
               }}</span>
             </UButton>
 
-            <!-- 列可见性按钮 -->
+            <!-- 鍒楀彲瑙佹€ф寜閽?-->
             <UDropdownMenu
               :items="
                 table?.tableApi
@@ -3017,7 +2989,7 @@ onUnmounted(() => {
           </div>
         </div>
 
-        <!-- 照片列表 -->
+        <!-- 鐓х墖鍒楄〃 -->
         <div
           class="border border-neutral-300 dark:border-neutral-800 rounded overflow-hidden"
         >
@@ -3057,7 +3029,7 @@ onUnmounted(() => {
             </template>
           </UTable>
 
-          <!-- 选择状态信息和批量操作 -->
+          <!-- 閫夋嫨鐘舵€佷俊鎭拰鎵归噺鎿嶄綔 -->
           <div
             class="px-4 py-4 border-t border-neutral-200 dark:border-neutral-700"
           >
@@ -3369,14 +3341,14 @@ onUnmounted(() => {
           </template>
         </UModal>
 
-        <!-- 添加到相册对话框 -->
+        <!-- 娣诲姞鍒扮浉鍐屽璇濇 -->
         <UModal v-model:open="isAddToAlbumsDialogOpen">
           <template #content>
             <div class="p-6 space-y-4">
               <div class="space-y-2">
                 <h3 class="text-lg font-semibold">添加到相册</h3>
                 <p class="text-sm text-neutral-600 dark:text-neutral-400">
-                  选择要添加此照片的相册（可多选）
+                  閫夋嫨瑕佹坊鍔犳鐓х墖鐨勭浉鍐岋紙鍙閫夛級
                 </p>
               </div>
 
@@ -3412,7 +3384,7 @@ onUnmounted(() => {
                   <div class="flex-1">
                     <div class="font-medium">{{ album.title }}</div>
                     <div class="text-xs text-neutral-500">
-                      {{ album.photoIds.length }} 张照片
+                      {{ album.photoIds.length }} 寮犵収鐗?
                     </div>
                   </div>
                 </div>
@@ -3421,7 +3393,7 @@ onUnmounted(() => {
                   v-if="!albums || albums.length === 0"
                   class="text-center py-8 text-neutral-400"
                 >
-                  暂无相册，请先创建相册
+                  鏆傛棤鐩稿唽锛岃鍏堝垱寤虹浉鍐?
                 </div>
               </div>
 
@@ -3432,21 +3404,21 @@ onUnmounted(() => {
                   :disabled="isAddingToAlbums"
                   @click="isAddToAlbumsDialogOpen = false"
                 >
-                  取消
+                  鍙栨秷
                 </UButton>
                 <UButton
                   icon="tabler:check"
                   :loading="isAddingToAlbums"
                   @click="handleAddToAlbums"
                 >
-                  确定
+                  纭畾
                 </UButton>
               </div>
             </div>
           </template>
         </UModal>
 
-        <!-- 图片预览模态框 -->
+        <!-- 鍥剧墖棰勮妯℃€佹 -->
         <UModal
           v-model:open="isImagePreviewOpen"
           title="Photo Preview"
@@ -3486,3 +3458,7 @@ onUnmounted(() => {
 </template>
 
 <style scoped></style>
+
+
+
+

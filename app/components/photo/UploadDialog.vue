@@ -785,11 +785,17 @@ const removeUploadingFile = (fileId: string) => {
   scheduleUploadQueueUpdate(true)
 }
 
+const isUploadQueueRemovableStatus = (status: UploadingFile['status']) =>
+  status === 'completed' ||
+  status === 'error' ||
+  status === 'skipped' ||
+  status === 'blocked'
+
 const clearCompletedUploads = () => {
   let removedCount = 0
 
   for (const [fileId, uploadingFile] of uploadingFiles.value) {
-    if (uploadingFile.status !== 'completed' && uploadingFile.status !== 'error') {
+    if (!isUploadQueueRemovableStatus(uploadingFile.status)) {
       continue
     }
 
@@ -811,22 +817,7 @@ const clearCompletedUploads = () => {
 }
 
 const clearAllUploads = () => {
-  for (const uploadingFile of uploadingFiles.value.values()) {
-    if (uploadingFile.status === 'uploading') {
-      uploadingFile.abortUpload?.()
-    }
-
-    if (uploadingFile.taskId) {
-      const intervalId = statusIntervals.value.get(uploadingFile.taskId)
-      if (intervalId) {
-        clearInterval(intervalId)
-        statusIntervals.value.delete(uploadingFile.taskId)
-      }
-    }
-  }
-
-  uploadingFiles.value.clear()
-  scheduleUploadQueueUpdate(true)
+  clearCompletedUploads()
 }
 
 const handleUpload = async () => {
