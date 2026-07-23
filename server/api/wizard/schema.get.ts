@@ -13,6 +13,8 @@ export default eventHandler(async (event) => {
 
   // 1. Admin Account Schema
   if (query.namespace === 'admin') {
+    // 管理员邮箱可通过环境变量预设，避免安装向导重复输入。
+    const adminEmail = process.env.CFRAME_ADMIN_EMAIL?.trim() ?? ''
     const fields: FieldDescriptor[] = [
       {
         namespace: 'admin',
@@ -27,8 +29,8 @@ export default eventHandler(async (event) => {
         namespace: 'admin',
         key: 'email',
         type: 'string',
-        defaultValue: '',
-        value: '',
+        defaultValue: adminEmail,
+        value: adminEmail,
         label: 'wizard.admin.email.label',
         ui: { type: 'input', required: true, placeholder: 'admin@example.com' }
       },
