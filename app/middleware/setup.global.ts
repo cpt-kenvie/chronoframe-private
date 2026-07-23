@@ -21,7 +21,7 @@ export default defineNuxtRouteMiddleware(async (to, _from) => {
     }
   } else {
     if (isOnboarding) {
-      // ignore
+      return navigateTo('/')
     }
   }
 })

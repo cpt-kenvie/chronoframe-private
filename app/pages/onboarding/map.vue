@@ -16,8 +16,6 @@ onMounted(() => {
   const site = unref(store.site)
   const storage = unref(store.storage)
 
-  console.log('检查前置数据:', { admin, site, storage })
-
   if (!admin?.email || !admin?.password || !site?.title || !storage?.name || !storage?.provider) {
     console.warn('前置数据不完整，重定向到第一步')
     toast.add({
@@ -54,11 +52,6 @@ const fetchingSchema = computed(() => fetchingMapSchema.value || fetchingLocatio
 
 function onSubmit() {
   // Validation passed, data is already in the store via useWizardForm binding
-  console.log('地图配置提交:', {
-    map: unref(mapState),
-    location: unref(locationState)
-  })
-  
   // Transformation of map config will happen in the final step
   router.push('/onboarding/complete')
 }

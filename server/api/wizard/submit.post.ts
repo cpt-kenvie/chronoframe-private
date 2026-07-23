@@ -1,9 +1,17 @@
 import { z } from 'zod'
 import { settingsManager } from '~~/server/services/settings/settingsManager'
+import {
+  finishSetup,
+  getSetupSessionConfig,
+  requireSetupSession,
+} from '~~/server/utils/setup-token'
 import { storageConfigSchema } from '~~/shared/types/storage'
-import { useDB, tables, eq } from '~~/server/utils/db'
+import { useDB, tables } from '~~/server/utils/db'
+import type { User } from '~~/server/utils/db'
 
 export default eventHandler(async (event) => {
+  const setupSession = await requireSetupSession(event)
+
   const body = await readValidatedBody(
     event,
     z.object({
@@ -39,32 +47,38 @@ export default eventHandler(async (event) => {
 
   const db = useDB()
 
-  // 1. Handle Admin User
   const existingUser = db.select().from(tables.users).limit(1).get()
+  let adminUser: User
+
   if (existingUser) {
-    if (existingUser.email === body.admin.email) {
-       await db.update(tables.users)
-         .set({
-           password: await hashPassword(body.admin.password),
-           username: body.admin.username,
-           isAdmin: 1
-         })
-         .where(eq(tables.users.id, existingUser.id))
-         .run()
-    } else {
+    // 安装重试只能由创建该管理员的原安装会话继续，绝不覆盖已有密码。
+    if (
+      setupSession.user?.id !== existingUser.id ||
+      existingUser.email !== body.admin.email ||
+      existingUser.isAdmin !== 1
+    ) {
       throw createError({
-        statusCode: 400,
-        message: 'User already exists',
+        statusCode: 409,
+        statusMessage: 'Administrator already exists',
       })
     }
+
+    adminUser = existingUser
   } else {
-    await db.insert(tables.users).values({
-      email: body.admin.email,
-      username: body.admin.username,
-      password: await hashPassword(body.admin.password),
-      isAdmin: 1,
-      createdAt: new Date(),
-    }).run()
+    adminUser = db
+      .insert(tables.users)
+      .values({
+        email: body.admin.email,
+        username: body.admin.username,
+        password: await hashPassword(body.admin.password),
+        isAdmin: 1,
+        createdAt: new Date(),
+      })
+      .returning()
+      .get()
+
+    // 立即绑定管理员身份，避免后续配置失败后只能通过匿名路径覆盖账号。
+    await setUserSession(event, { user: adminUser }, getSetupSessionConfig())
   }
 
   // 2. Handle Site Settings
@@ -109,8 +123,7 @@ export default eventHandler(async (event) => {
     }
   }
 
-  // 6. Mark Complete
-  await settingsManager.set('system', 'firstLaunch', false, undefined, true)
+  await finishSetup(event, adminUser)
 
   return { success: true }
 })

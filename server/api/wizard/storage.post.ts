@@ -1,8 +1,11 @@
 import { z } from 'zod'
 import { settingsManager } from '~~/server/services/settings/settingsManager'
+import { requireSetupSession } from '~~/server/utils/setup-token'
 import { storageConfigSchema } from '~~/shared/types/storage'
 
 export default eventHandler(async (event) => {
+  await requireSetupSession(event)
+
   const body = await readValidatedBody(
     event,
     z.object({

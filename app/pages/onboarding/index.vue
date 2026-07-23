@@ -2,6 +2,41 @@
 definePageMeta({
   layout: 'onboarding',
 })
+
+const router = useRouter()
+const toast = useToast()
+const setupToken = ref('')
+const authorizing = ref(false)
+
+const authorizeSetup = async () => {
+  const token = setupToken.value.trim()
+  if (!token) {
+    toast.add({
+      title: '请输入安装令牌',
+      description: '安装令牌可在容器启动日志或 data/.setup_token 中查看。',
+      color: 'warning',
+    })
+    return
+  }
+
+  authorizing.value = true
+  try {
+    await $fetch('/api/wizard/access', {
+      method: 'POST',
+      body: { token },
+    })
+    setupToken.value = ''
+    await router.push('/onboarding/admin')
+  } catch {
+    toast.add({
+      title: '安装令牌无效',
+      description: '请检查容器启动日志中的一次性安装令牌。',
+      color: 'error',
+    })
+  } finally {
+    authorizing.value = false
+  }
+}
 </script>
 
 <template>
@@ -90,6 +125,29 @@ definePageMeta({
           </div>
         </div>
       </div>
+
+      <form
+        id="setup-token-form"
+        class="space-y-3"
+        @submit.prevent="authorizeSetup"
+      >
+        <label
+          for="setup-token"
+          class="block text-sm font-medium text-white"
+        >
+          一次性安装令牌
+        </label>
+        <WizardInput
+          id="setup-token"
+          v-model="setupToken"
+          type="password"
+          autocomplete="one-time-code"
+          placeholder="请输入容器启动日志中的安装令牌"
+        />
+        <p class="text-xs text-neutral-500">
+          令牌也会保存在持久化数据目录的 data/.setup_token 文件中，安装完成后自动删除。
+        </p>
+      </form>
     </div>
 
     <template #actions>
@@ -98,9 +156,11 @@ definePageMeta({
           ChronoFrame 不会收集您的任何数据。
         </p>
         <WizardButton
-          to="/onboarding/admin"
+          type="submit"
+          form="setup-token-form"
           color="primary"
           size="lg"
+          :loading="authorizing"
           trailing-icon="tabler:arrow-right"
         >
           开始吧

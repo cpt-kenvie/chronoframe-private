@@ -17,13 +17,6 @@ const isDataComplete = computed(() => {
   const storage = unref(store.storage)
   const map = unref(store.map)
 
-  console.log('Checking data completeness:', {
-    admin,
-    site,
-    storage,
-    map
-  })
-
   return !!(
     admin?.email && 
     admin?.password && 
@@ -129,8 +122,6 @@ async function onComplete() {
       map: mapData,
       location: locationData,
     }
-
-    console.log('提交向导数据:', JSON.stringify(submitData, null, 2))
 
     await $fetch('/api/wizard/submit', {
       method: 'POST',

@@ -1,9 +1,12 @@
 import { z } from 'zod'
 import { settingsManager } from '~~/server/services/settings/settingsManager'
 import { getSettingUIConfig } from '~~/server/services/settings/ui-config'
+import { requireSetupSession } from '~~/server/utils/setup-token'
 import type { FieldDescriptor } from '~~/shared/types/settings'
 
 export default eventHandler(async (event) => {
+  await requireSetupSession(event)
+
   const query = await getValidatedQuery(
     event,
     z.object({
