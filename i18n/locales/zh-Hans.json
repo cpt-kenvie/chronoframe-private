@@ -886,16 +886,22 @@
       },
       "types": {
         "photo": "照片处理",
+        "video": "视频处理",
         "live-photo-video": "LivePhoto视频",
-        "photo-reverse-geocoding": "照片逆地理编码"
+        "photo-reverse-geocoding": "照片逆地理编码",
+        "file-encryption": "文件加密"
       },
       "stages": {
         "preprocessing": "预处理",
         "metadata": "元数据",
         "thumbnail": "缩略图",
         "exif": "EXIF处理",
+        "motion-photo": "动态照片处理",
         "reverse-geocoding": "地理解析",
-        "live-photo": "LivePhoto处理"
+        "live-photo": "LivePhoto处理",
+        "video-metadata": "视频元数据",
+        "video-thumbnail": "视频缩略图",
+        "encrypting": "文件加密"
       },
       "buttons": {
         "retry": "重试",

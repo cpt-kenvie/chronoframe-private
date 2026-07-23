@@ -836,16 +836,22 @@
       },
       "types": {
         "photo": "写真処理",
+        "video": "動画処理",
         "live-photo-video": "LivePhoto動画",
-        "photo-reverse-geocoding": "写真の逆ジオコーディング"
+        "photo-reverse-geocoding": "写真の逆ジオコーディング",
+        "file-encryption": "ファイル暗号化"
       },
       "stages": {
         "preprocessing": "前処理",
         "metadata": "メタデータ",
         "thumbnail": "サムネイル",
         "exif": "EXIF処理",
+        "motion-photo": "モーションフォト処理",
         "reverse-geocoding": "地理解析",
-        "live-photo": "LivePhoto処理"
+        "live-photo": "LivePhoto処理",
+        "video-metadata": "動画メタデータ",
+        "video-thumbnail": "動画サムネイル",
+        "encrypting": "ファイル暗号化"
       },
       "buttons": {
         "retry": "再試行",

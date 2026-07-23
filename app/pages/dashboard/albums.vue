@@ -162,9 +162,9 @@ const onFormSubmit = async (event: FormSubmitEvent<AlbumFormState>) => {
         method: 'PUT',
         body: {
           title: event.data.title,
-          description: event.data.description || undefined,
+          description: event.data.description || null,
           isHidden: event.data.isHidden,
-          coverPhotoId: coverPhotoId.value || undefined,
+          coverPhotoId: coverPhotoId.value || null,
           photoIds: selectedPhotoIds.value,
         },
       })
@@ -180,9 +180,9 @@ const onFormSubmit = async (event: FormSubmitEvent<AlbumFormState>) => {
         method: 'POST',
         body: {
           title: event.data.title,
-          description: event.data.description || undefined,
+          description: event.data.description || null,
           isHidden: event.data.isHidden,
-          coverPhotoId: coverPhotoId.value || undefined,
+          coverPhotoId: coverPhotoId.value || null,
           photoIds: selectedPhotoIds.value,
         },
       })
@@ -247,6 +247,11 @@ const togglePhotoSelection = (photoId: string) => {
   }
 }
 
+const clearSelectedPhotos = () => {
+  selectedPhotoIds.value = []
+  coverPhotoId.value = ''
+}
+
 const setCoverPhoto = (photoId: string) => {
   if (!selectedPhotoIds.value.includes(photoId)) {
     selectedPhotoIds.value.push(photoId)
@@ -306,7 +311,7 @@ const areSomePhotosSelected = computed(() => {
 
 const toggleAllPhotos = () => {
   if (areAllPhotosSelected.value) {
-    selectedPhotoIds.value = []
+    clearSelectedPhotos()
   } else {
     selectedPhotoIds.value = allPhotos.value.map((p) => p.id)
   }
@@ -679,7 +684,7 @@ const columns: any[] = [
                       color="neutral"
                       size="xs"
                       icon="tabler:trash"
-                      @click="selectedPhotoIds = []"
+                      @click="clearSelectedPhotos"
                     >
                       {{ $t('dashboard.albums.form.clearAll') }}
                     </UButton>

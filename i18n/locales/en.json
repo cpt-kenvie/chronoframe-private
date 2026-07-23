@@ -886,16 +886,22 @@
       },
       "types": {
         "photo": "Photo Processing",
+        "video": "Video Processing",
         "live-photo-video": "LivePhoto Video",
-        "photo-reverse-geocoding": "Photo Reverse Geocoding"
+        "photo-reverse-geocoding": "Photo Reverse Geocoding",
+        "file-encryption": "File Encryption"
       },
       "stages": {
         "preprocessing": "Preprocessing",
         "metadata": "Metadata",
         "thumbnail": "Thumbnail",
         "exif": "EXIF Processing",
+        "motion-photo": "Motion Photo Processing",
         "reverse-geocoding": "Geocoding",
-        "live-photo": "LivePhoto Processing"
+        "live-photo": "LivePhoto Processing",
+        "video-metadata": "Video Metadata",
+        "video-thumbnail": "Video Thumbnail",
+        "encrypting": "File Encryption"
       },
       "buttons": {
         "retry": "Retry",

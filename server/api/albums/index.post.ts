@@ -7,9 +7,9 @@ export default eventHandler(async (event) => {
     event,
     z.object({
       title: z.string().min(1).max(255),
-      description: z.string().max(1000).optional(),
+      description: z.string().max(1000).nullable().optional(),
       isHidden: z.boolean().optional(),
-      coverPhotoId: z.string().optional(),
+      coverPhotoId: z.string().min(1).nullable().optional(),
       photoIds: z.array(z.string()).optional(),
     }).parse,
   )
@@ -21,9 +21,9 @@ export default eventHandler(async (event) => {
       .insert(tables.albums)
       .values({
         title: body.title,
-        description: body.description || null,
-        isHidden: body.isHidden ? 1 : 0,
-        coverPhotoId: body.coverPhotoId || null,
+        description: body.description ?? null,
+        isHidden: body.isHidden ?? false,
+        coverPhotoId: body.coverPhotoId ?? null,
       })
       .returning()
       .get()

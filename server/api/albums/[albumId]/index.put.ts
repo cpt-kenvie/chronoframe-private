@@ -17,9 +17,9 @@ export default eventHandler(async (event) => {
     event,
     z.object({
       title: z.string().min(1).max(255).optional(),
-      description: z.string().max(1000).optional(),
+      description: z.string().max(1000).nullable().optional(),
       isHidden: z.boolean().optional(),
-      coverPhotoId: z.string().optional(),
+      coverPhotoId: z.string().min(1).nullable().optional(),
       photoIds: z.array(z.string()).optional(),
     }).parse,
   )
@@ -43,7 +43,7 @@ export default eventHandler(async (event) => {
   // 使用事务更新相簿
   const updatedAlbum = db.transaction((tx) => {
     // 更新基本信息
-    const updateData: Record<string, any> = {
+    const updateData: Partial<typeof tables.albums.$inferInsert> = {
       updatedAt: new Date(),
     }
 
@@ -52,15 +52,15 @@ export default eventHandler(async (event) => {
     }
 
     if (body.description !== undefined) {
-      updateData.description = body.description || null
+      updateData.description = body.description
     }
 
     if (body.isHidden !== undefined) {
-      updateData.isHidden = body.isHidden ? 1 : 0
+      updateData.isHidden = body.isHidden
     }
 
     if (body.coverPhotoId !== undefined) {
-      updateData.coverPhotoId = body.coverPhotoId || null
+      updateData.coverPhotoId = body.coverPhotoId
     }
 
     tx.update(tables.albums)

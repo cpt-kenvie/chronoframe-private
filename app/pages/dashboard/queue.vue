@@ -140,10 +140,10 @@ const retryAllFailedTasks = async () => {
   }
 }
 
-// 删除单个任务（仅适用于失败任务）
+// 删除单个非执行中任务
 const deleteTask = async (taskId: number) => {
   try {
-    await $fetch(`/api/queue/failed/${taskId}`, {
+    await $fetch(`/api/queue/task/${taskId}`, {
       method: 'DELETE',
     })
 
@@ -194,6 +194,7 @@ const statusOptions = [
 const typeOptions = [
   { label: $t('dashboard.queue.filters.all'), value: 'all' },
   { label: $t('dashboard.queue.types.photo'), value: 'photo' },
+  { label: $t('dashboard.queue.types.video'), value: 'video' },
   {
     label: $t('dashboard.queue.types.live-photo-video'),
     value: 'live-photo-video',
@@ -201,6 +202,10 @@ const typeOptions = [
   {
     label: $t('dashboard.queue.types.photo-reverse-geocoding'),
     value: 'photo-reverse-geocoding',
+  },
+  {
+    label: $t('dashboard.queue.types.file-encryption'),
+    value: 'file-encryption',
   },
 ]
 
@@ -444,7 +449,7 @@ onBeforeUnmount(() => {
                     {{ $t('dashboard.queue.buttons.retry') }}
                   </UButton>
                   <UButton
-                    v-if="row.original.status !== 'in-stage'"
+                    v-if="row.original.status !== 'in-stages'"
                     icon="tabler:trash"
                     size="xs"
                     variant="soft"
@@ -454,10 +459,7 @@ onBeforeUnmount(() => {
                     {{ $t('dashboard.queue.buttons.delete') }}
                   </UButton>
                   <span
-                    v-if="
-                      row.original.status === 'pending' ||
-                      row.original.status === 'in-stages'
-                    "
+                    v-if="row.original.status === 'in-stages'"
                     class="text-xs text-gray-400"
                   >
                     -

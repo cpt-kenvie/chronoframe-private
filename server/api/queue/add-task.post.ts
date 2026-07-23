@@ -26,6 +26,10 @@ export default defineEventHandler(async (event) => {
         latitude: z.number().min(-90).max(90).optional(),
         longitude: z.number().min(-180).max(180).optional(),
       }),
+      z.object({
+        type: z.literal('file-encryption'),
+        storageKey: z.string().nonempty(),
+      }),
     ])
 
     const { payload, priority, maxAttempts } = await readValidatedBody(
