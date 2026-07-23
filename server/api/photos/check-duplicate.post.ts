@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { eq } from 'drizzle-orm'
 import { generateSafePhotoId } from '~~/server/utils/file-utils'
-import { isStorageEncryptionEnabled, resolveOriginalKeyForPhoto, toFileProxyUrl } from '~~/server/utils/publicFile'
+import { resolveOriginalKeyForPhoto, toFileProxyUrl } from '~~/server/utils/publicFile'
 import { useStorageProvider } from '~~/server/utils/useStorageProvider'
 import { safeUseTranslation } from '~~/server/utils/i18n'
 
@@ -14,10 +14,9 @@ export default defineEventHandler(async (event) => {
 
   const t = await safeUseTranslation(event)
   const { storageProvider } = useStorageProvider(event)
-  const encryptionEnabled = await isStorageEncryptionEnabled()
   const toUrl = (key?: string | null) => {
     if (!key) return null
-    return encryptionEnabled ? toFileProxyUrl(key) : storageProvider.getPublicUrl(key)
+    return toFileProxyUrl(key)
   }
 
   try {

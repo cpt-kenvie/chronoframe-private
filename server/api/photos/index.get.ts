@@ -1,16 +1,13 @@
 import { desc, eq, inArray, notInArray } from 'drizzle-orm'
-import { useStorageProvider } from '~~/server/utils/useStorageProvider'
-import { isStorageEncryptionEnabled, resolveOriginalKeyForPhoto, toFileProxyUrl } from '~~/server/utils/publicFile'
+import { resolveOriginalKeyForPhoto, toFileProxyUrl } from '~~/server/utils/publicFile'
 
 export default eventHandler(async (event) => {
   const db = useDB()
   const session = await getUserSession(event)
-  const { storageProvider } = useStorageProvider(event)
-  const encryptionEnabled = await isStorageEncryptionEnabled()
 
   const toUrl = (key?: string | null) => {
     if (!key) return null
-    return encryptionEnabled ? toFileProxyUrl(key) : storageProvider.getPublicUrl(key)
+    return toFileProxyUrl(key)
   }
 
   const withUrls = (photo: any) => {

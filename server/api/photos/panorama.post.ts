@@ -1,8 +1,7 @@
 import { z } from 'zod'
 import { eq, sql } from 'drizzle-orm'
 import { generateSafePhotoId } from '~~/server/utils/file-utils'
-import { useStorageProvider } from '~~/server/utils/useStorageProvider'
-import { isStorageEncryptionEnabled, toFileProxyUrl } from '~~/server/utils/publicFile'
+import { toFileProxyUrl } from '~~/server/utils/publicFile'
 
 export default defineEventHandler(async (event) => {
   await requireUserSession(event)
@@ -26,11 +25,9 @@ export default defineEventHandler(async (event) => {
     )
 
   const photoId = generateSafePhotoId(storageKey)
-  const { storageProvider } = useStorageProvider(event)
-  const encryptionEnabled = await isStorageEncryptionEnabled()
   const toUrl = (key?: string | null) => {
     if (!key) return null
-    return encryptionEnabled ? toFileProxyUrl(key) : storageProvider.getPublicUrl(key)
+    return toFileProxyUrl(key)
   }
 
   const nowIso = new Date().toISOString()

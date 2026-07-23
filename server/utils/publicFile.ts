@@ -18,13 +18,11 @@ export const toFileProxyUrl = (key: string): string => {
 }
 
 export const resolveDownloadUrl = async (
-  storageProvider: StorageProvider,
+  _storageProvider: StorageProvider,
   key?: string | null,
 ): Promise<string | null> => {
   if (!key) return null
-  return (await isStorageEncryptionEnabled())
-    ? toFileProxyUrl(key)
-    : storageProvider.getPublicUrl(key)
+  return toFileProxyUrl(key)
 }
 
 export const resolveOriginalKeyForPhoto = (storageKey?: string | null): string | null => {

@@ -1,7 +1,7 @@
 import path from 'path'
 import { eq } from 'drizzle-orm'
 import { getStorageManager } from '~~/server/plugins/3.storage'
-import { isStorageEncryptionEnabled, toFileProxyUrl } from '~~/server/utils/publicFile'
+import { toFileProxyUrl } from '~~/server/utils/publicFile'
 
 /**
  * 处理 LivePhoto MOV 文件，匹配相同文件名的照片并更新 LivePhoto 信息
@@ -10,7 +10,6 @@ export const processLivePhotoVideo = async (
   videoKey: string,
   _videoSize: number
 ): Promise<boolean> => {
-  const storageProvider = getStorageManager().getProvider()
   const db = useDB()
   
   try {
@@ -52,11 +51,8 @@ export const processLivePhotoVideo = async (
       return false
     }
     
-    // 获取视频的公共 URL
-    const encryptionEnabled = await isStorageEncryptionEnabled()
-    const videoUrl = encryptionEnabled
-      ? toFileProxyUrl(videoKey)
-      : storageProvider.getPublicUrl(videoKey)
+    // 媒体 URL 统一通过权限代理生成，避免隐藏相册文件泄漏。
+    const videoUrl = toFileProxyUrl(videoKey)
     
     // 更新照片记录，设置 LivePhoto 信息
     await db

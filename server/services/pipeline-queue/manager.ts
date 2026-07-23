@@ -22,7 +22,7 @@ import { findLivePhotoVideoForImage } from '../video/livephoto'
 import { processMotionPhotoFromXmp } from '../video/motion-photo'
 import { processVideoMetadata } from '../video/processor'
 import { getStorageManager } from '~~/server/plugins/3.storage'
-import { isStorageEncryptionEnabled, toFileProxyUrl } from '~~/server/utils/publicFile'
+import { toFileProxyUrl } from '~~/server/utils/publicFile'
 
 class NonRetryableError extends Error {
   constructor(message: string) {
@@ -246,10 +246,9 @@ export class QueueManager {
         }
         const { storageKey } = payload
         const storageProvider = getStorageManager().getProvider()
-        const encryptionEnabled = await isStorageEncryptionEnabled()
         const toUrl = (key?: string | null) => {
           if (!key) return null
-          return encryptionEnabled ? toFileProxyUrl(key) : storageProvider.getPublicUrl(key)
+          return toFileProxyUrl(key)
         }
         const photoId = generateSafePhotoId(storageKey)
 
@@ -637,10 +636,9 @@ export class QueueManager {
       livePhotoDetect: async (task: PipelineQueueItem) => {
         const db = useDB()
         const storageProvider = getStorageManager().getProvider()
-        const encryptionEnabled = await isStorageEncryptionEnabled()
         const toUrl = (key?: string | null) => {
           if (!key) return null
-          return encryptionEnabled ? toFileProxyUrl(key) : storageProvider.getPublicUrl(key)
+          return toFileProxyUrl(key)
         }
 
         const { id: taskId, payload } = task
@@ -777,10 +775,9 @@ export class QueueManager {
         }
         const { storageKey } = payload
         const storageProvider = getStorageManager().getProvider()
-        const encryptionEnabled = await isStorageEncryptionEnabled()
         const toUrl = (key?: string | null) => {
           if (!key) return null
-          return encryptionEnabled ? toFileProxyUrl(key) : storageProvider.getPublicUrl(key)
+          return toFileProxyUrl(key)
         }
         const photoId = generateSafePhotoId(storageKey)
 

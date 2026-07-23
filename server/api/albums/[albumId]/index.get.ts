@@ -1,14 +1,11 @@
 import { asc, getTableColumns } from 'drizzle-orm'
 import z from 'zod'
-import { useStorageProvider } from '~~/server/utils/useStorageProvider'
-import { isStorageEncryptionEnabled, resolveOriginalKeyForPhoto, toFileProxyUrl } from '~~/server/utils/publicFile'
+import { resolveOriginalKeyForPhoto, toFileProxyUrl } from '~~/server/utils/publicFile'
 
 export default eventHandler(async (event) => {
-  const { storageProvider } = useStorageProvider(event)
-  const encryptionEnabled = await isStorageEncryptionEnabled()
   const toUrl = (key?: string | null) => {
     if (!key) return null
-    return encryptionEnabled ? toFileProxyUrl(key) : storageProvider.getPublicUrl(key)
+    return toFileProxyUrl(key)
   }
   const withUrls = (photo: any) => {
     const originalKey = resolveOriginalKeyForPhoto(photo.storageKey) || photo.storageKey

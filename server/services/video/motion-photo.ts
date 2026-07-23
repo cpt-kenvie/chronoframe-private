@@ -1,7 +1,7 @@
 import type { ConsolaInstance } from 'consola'
 import type { NeededExif } from '~~/shared/types/photo'
 import type { StorageProvider } from '../storage'
-import { isStorageEncryptionEnabled, toFileProxyUrl } from '~~/server/utils/publicFile'
+import { toFileProxyUrl } from '~~/server/utils/publicFile'
 
 interface MotionPhotoProcessParams {
   photoId: string
@@ -290,10 +290,7 @@ export const processMotionPhotoFromXmp = async ({
     }
 
     const livePhotoVideoKey = storedObject.key || targetKey
-    const encryptionEnabled = await isStorageEncryptionEnabled()
-    const livePhotoVideoUrl = encryptionEnabled
-      ? toFileProxyUrl(livePhotoVideoKey)
-      : storageProvider.getPublicUrl(livePhotoVideoKey)
+    const livePhotoVideoUrl = toFileProxyUrl(livePhotoVideoKey)
 
     logger?.success(
       `[motion-photo] Extracted Motion Photo video for ${storageKey} at offset ${resolvedOffset}, saved as ${livePhotoVideoKey}`,

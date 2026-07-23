@@ -1,5 +1,5 @@
 import path from 'node:path'
-import { and, eq, or } from 'drizzle-orm'
+import { requirePhotoFileAccess } from '~~/server/utils/photoFileAccess'
 import { useStorageProvider } from '~~/server/utils/useStorageProvider'
 
 const guessContentTypeFromKey = (key: string): string => {
@@ -43,13 +43,6 @@ const normalizeKeyFromParam = (p: string): string => {
   return key
 }
 
-const toHeicCandidatesFromJpeg = (key: string): string[] => {
-  const lower = key.toLowerCase()
-  if (!lower.endsWith('.jpeg')) return []
-  const base = key.slice(0, -'.jpeg'.length)
-  return [`${base}.heic`, `${base}.heif`, `${base}.hif`]
-}
-
 export default eventHandler(async (event) => {
   const rawParam = getRouterParam(event, 'key')
   if (!rawParam) {
@@ -58,44 +51,7 @@ export default eventHandler(async (event) => {
 
   const key = normalizeKeyFromParam(rawParam)
   const { storageProvider } = useStorageProvider(event)
-
-  const session = await getUserSession(event)
-
-  if (!session.user) {
-    const db = useDB()
-
-    const heicCandidates = toHeicCandidatesFromJpeg(key)
-
-    const photo = await db
-      .select({ id: tables.photos.id })
-      .from(tables.photos)
-      .where(
-        or(
-          eq(tables.photos.storageKey, key),
-          eq(tables.photos.thumbnailKey, key),
-          eq(tables.photos.livePhotoVideoKey, key),
-          ...(heicCandidates.length > 0
-            ? heicCandidates.map((k) => eq(tables.photos.storageKey, k))
-            : []),
-        ),
-      )
-      .get()
-
-    if (!photo) {
-      throw createError({ statusCode: 404, statusMessage: 'Not Found' })
-    }
-
-    const hiddenRelation = await db
-      .select({ id: tables.albumPhotos.id })
-      .from(tables.albumPhotos)
-      .innerJoin(tables.albums, eq(tables.albumPhotos.albumId, tables.albums.id))
-      .where(and(eq(tables.albumPhotos.photoId, photo.id), eq(tables.albums.isHidden, 1)))
-      .get()
-
-    if (hiddenRelation) {
-      throw createError({ statusCode: 404, statusMessage: 'Not Found' })
-    }
-  }
+  const { isAuthenticated } = await requirePhotoFileAccess(event, key)
 
   const buffer = await storageProvider.get(key)
   if (!buffer) {
@@ -104,11 +60,11 @@ export default eventHandler(async (event) => {
 
   setHeader(event, 'Content-Type', guessContentTypeFromKey(key))
 
-  // Public photos are already filtered by DB check; allow long caching for them.
+  // 相册可见性可能变化，公开响应必须在每次使用前重新校验。
   setHeader(
     event,
     'Cache-Control',
-    session.user ? 'private, max-age=0, must-revalidate' : 'public, max-age=31536000, immutable',
+    isAuthenticated ? 'private, no-store' : 'public, max-age=0, must-revalidate',
   )
 
   const range = getHeader(event, 'range')

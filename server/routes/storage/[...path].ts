@@ -1,6 +1,7 @@
 import path from 'node:path'
 import { createReadStream, promises as fs } from 'node:fs'
 import { getStorageManager } from '../../plugins/3.storage'
+import { requirePhotoFileAccess } from '~~/server/utils/photoFileAccess'
 // lightweight: avoid TS type dep; fallback when not resolvable
 const guessContentType = (filePath: string): string => {
   const ext = (filePath.split('.').pop() || '').toLowerCase()
@@ -57,17 +58,23 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: 'Invalid path' })
   }
 
+  const { isAuthenticated } = await requirePhotoFileAccess(event, relPath)
+
   try {
     const stat = await fs.stat(absolute)
     if (!stat.isFile()) {
       throw createError({ statusCode: 404, statusMessage: 'Not Found' })
     }
 
-    // 设置缓存头
+    // 相册可见性可能变化，公开响应必须在每次使用前重新校验。
     const etag = `W/"${stat.size}-${stat.mtimeMs}"`
     setHeader(event, 'ETag', etag)
     setHeader(event, 'Last-Modified', stat.mtime.toUTCString())
-    setHeader(event, 'Cache-Control', 'public, max-age=31536000, immutable')
+    setHeader(
+      event,
+      'Cache-Control',
+      isAuthenticated ? 'private, no-store' : 'public, max-age=0, must-revalidate',
+    )
 
     // Content-Type
     const contentType = guessContentType(absolute)

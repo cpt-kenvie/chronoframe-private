@@ -101,7 +101,7 @@ export default eventHandler(async (event) => {
         .where(eq(tables.photos.id, photoId))
         .get()
 
-      if (existingPhoto && encryptionEnabled) {
+      if (existingPhoto) {
         const originalKey =
           resolveOriginalKeyForPhoto(existingPhoto.storageKey) ||
           existingPhoto.storageKey
