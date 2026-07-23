@@ -413,6 +413,9 @@ export async function extractLocationFromGPS(
   }
 }
 
+const isFiniteCoordinate = (value: number | undefined): value is number =>
+  value !== undefined && Number.isFinite(value)
+
 /**
  * 解析EXIF GPS数据为十进制度数
  */
@@ -425,13 +428,21 @@ export function parseGPSCoordinates(exifData: any): {
     let longitude: number | undefined
 
     // 尝试从GPSLatitude和GPSLongitude获取
-    if (exifData.GPSLatitude && exifData.GPSLongitude) {
+    if (
+      exifData.GPSLatitude !== undefined &&
+      exifData.GPSLatitude !== null &&
+      exifData.GPSLongitude !== undefined &&
+      exifData.GPSLongitude !== null
+    ) {
       latitude = parseFloat(exifData.GPSLatitude.toString())
       longitude = parseFloat(exifData.GPSLongitude.toString())
     }
 
     // 如果上面的方法失败，尝试从GPSCoordinates获取
-    if ((!latitude || !longitude) && exifData.GPSCoordinates) {
+    if (
+      (!isFiniteCoordinate(latitude) || !isFiniteCoordinate(longitude)) &&
+      exifData.GPSCoordinates
+    ) {
       const coords = exifData.GPSCoordinates.toString()
       const match = coords.match(/([-+]?\d+\.?\d*)[°,\s]+([-+]?\d+\.?\d*)/)
       if (match) {
@@ -441,14 +452,17 @@ export function parseGPSCoordinates(exifData: any): {
     }
 
     // 应用GPS参考（南纬为负，西经为负）
-    if (latitude && exifData.GPSLatitudeRef === 'S') {
+    if (isFiniteCoordinate(latitude) && exifData.GPSLatitudeRef === 'S') {
       latitude = -Math.abs(latitude)
     }
-    if (longitude && exifData.GPSLongitudeRef === 'W') {
+    if (isFiniteCoordinate(longitude) && exifData.GPSLongitudeRef === 'W') {
       longitude = -Math.abs(longitude)
     }
 
-    return { latitude, longitude }
+    return {
+      latitude: isFiniteCoordinate(latitude) ? latitude : undefined,
+      longitude: isFiniteCoordinate(longitude) ? longitude : undefined,
+    }
   } catch (error) {
     logger.location.error('Failed to parse GPS coordinates:', error)
     return {}

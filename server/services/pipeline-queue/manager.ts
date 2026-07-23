@@ -1,6 +1,6 @@
 import type { ConsolaInstance } from 'consola'
 import path from 'path'
-import { asc, desc, eq, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, lte, sql } from 'drizzle-orm'
 import type {
   NewPipelineQueueItem,
   PipelineQueueItem,
@@ -23,6 +23,11 @@ import { processMotionPhotoFromXmp } from '../video/motion-photo'
 import { processVideoMetadata } from '../video/processor'
 import { getStorageManager } from '~~/server/plugins/3.storage'
 import { toFileProxyUrl } from '~~/server/utils/publicFile'
+
+// 首次重试等待时间，后续失败按指数退避。
+const INITIAL_RETRY_DELAY_MS = 1000
+// 单次重试最大等待时间，避免失败任务等待过久。
+const MAX_RETRY_DELAY_MS = 30000
 
 class NonRetryableError extends Error {
   constructor(message: string) {
@@ -132,7 +137,12 @@ export class QueueManager {
       const highestPriorityPendingTask = tx
         .select()
         .from(tables.pipelineQueue)
-        .where(eq(tables.pipelineQueue.status, 'pending'))
+        .where(
+          and(
+            eq(tables.pipelineQueue.status, 'pending'),
+            lte(tables.pipelineQueue.createdAt, new Date()),
+          ),
+        )
         // 优先处理高优先级和较早创建的任务
         .orderBy(
           desc(tables.pipelineQueue.priority),
@@ -206,7 +216,10 @@ export class QueueManager {
     const shouldRetry = isRetryable && newAttempts < task.maxAttempts
 
     const retryDelay = shouldRetry
-      ? Math.min(1000 * Math.pow(2, newAttempts - 1), 30000)
+      ? Math.min(
+          INITIAL_RETRY_DELAY_MS * Math.pow(2, newAttempts - 1),
+          MAX_RETRY_DELAY_MS,
+        )
       : 0
 
     await db
@@ -363,7 +376,12 @@ export class QueueManager {
           if (mergedExif) {
             const { latitude, longitude } = parseGPSCoordinates(mergedExif)
             coordinates = { latitude, longitude }
-            if (latitude && longitude) {
+            if (
+              latitude !== undefined &&
+              latitude !== null &&
+              longitude !== undefined &&
+              longitude !== null
+            ) {
               locationInfo = await extractLocationFromGPS(latitude, longitude)
             }
           }
@@ -447,8 +465,8 @@ export class QueueManager {
               : null,
             exif: mergedExif,
             // 地理位置信息
-            latitude: coordinates?.latitude || null,
-            longitude: coordinates?.longitude || null,
+            latitude: coordinates?.latitude ?? null,
+            longitude: coordinates?.longitude ?? null,
             country: locationInfo?.country || null,
             city: locationInfo?.city || null,
             locationName: locationInfo?.locationName || null,
