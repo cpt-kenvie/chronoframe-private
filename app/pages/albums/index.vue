@@ -5,7 +5,8 @@ import type { AlbumListItem } from '~/composables/useAlbums'
 
 const config = useRuntimeConfig()
 const route = useRoute()
-const { photos } = usePhotos()
+const { photos, ensureLoaded } = usePhotos()
+await ensureLoaded()
 const { data: albums, refresh: refreshAlbums } = useAlbums()
 await refreshAlbums()
 
@@ -71,10 +72,16 @@ const getAlbumDisplayPhotos = (album: AlbumListItem) => {
   if (!album.photoIds || album.photoIds.length === 0) return []
 
   const displayPhotos: DisplayPhoto[] = []
+  const getAlbumPhotoById = (photoId: string) => {
+    return (
+      album.previewPhotos.find((photo) => photo.id === photoId) ||
+      getPhotoById(photoId)
+    )
+  }
 
   // 第一张：优先使用封面照片
   if (album.coverPhotoId) {
-    const coverPhoto = getPhotoById(album.coverPhotoId)
+    const coverPhoto = getAlbumPhotoById(album.coverPhotoId)
     if (coverPhoto) {
       displayPhotos.push(coverPhoto)
     }
@@ -82,7 +89,7 @@ const getAlbumDisplayPhotos = (album: AlbumListItem) => {
 
   // 如果没有封面照片或封面照片不存在，使用第一张
   if (displayPhotos.length === 0 && album.photoIds[0]) {
-    const firstPhoto = getPhotoById(album.photoIds[0])
+    const firstPhoto = getAlbumPhotoById(album.photoIds[0])
     if (firstPhoto) {
       displayPhotos.push(firstPhoto)
     }
@@ -91,7 +98,7 @@ const getAlbumDisplayPhotos = (album: AlbumListItem) => {
   // 添加其他照片（最多3张）
   for (const photoId of album.photoIds) {
     if (displayPhotos.length >= 3) break
-    const photo = getPhotoById(photoId)
+    const photo = getAlbumPhotoById(photoId)
     if (photo && !displayPhotos.find((p) => p.id === photo.id)) {
       displayPhotos.push(photo)
     }

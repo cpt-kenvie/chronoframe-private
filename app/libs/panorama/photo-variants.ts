@@ -17,13 +17,14 @@ export const mergePanoramaPhotoVariants = (photos: Photo[]): DisplayPhoto[] => {
   const groupPhotosByKey = new Map<string, Photo[]>()
 
   for (const photo of photos) {
-    const panoramaFormat = getPanoramaFormatFromStorageKey(photo.storageKey)
-    if (!panoramaFormat) {
+    const storageKey = photo.storageKey
+    const panoramaFormat = getPanoramaFormatFromStorageKey(storageKey)
+    if (!storageKey || !panoramaFormat) {
       merged.push(photo)
       continue
     }
 
-    const key = stripStorageKeyExt(photo.storageKey)
+    const key = stripStorageKeyExt(storageKey)
     const existingIndex = groupIndexByKey.get(key)
     if (existingIndex === undefined) {
       groupIndexByKey.set(key, merged.length)
@@ -39,8 +40,10 @@ export const mergePanoramaPhotoVariants = (photos: Photo[]): DisplayPhoto[] => {
     if (groupPhotos.length < 2) continue
     const index = groupIndexByKey.get(key)
     if (index === undefined) continue
+    const primaryPhoto = groupPhotos[0]
+    if (!primaryPhoto) continue
     merged[index] = {
-      ...groupPhotos[0],
+      ...primaryPhoto,
       panoramaVariants: groupPhotos.slice(1),
     }
   }

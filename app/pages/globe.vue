@@ -1,8 +1,8 @@
 <script lang="ts" setup>
 import { motion } from 'motion-v'
-import { clusterMarkers, photosToMarkers } from '~/utils/clustering'
+import type { PhotoMarker } from '~~/shared/types/map'
+import { clusterMarkers } from '~/utils/clustering'
 import { transformCoordinate } from '~/utils/coordinate-transform'
-import { findDisplayPhotoById } from '~/libs/panorama/photo-variants'
 
 useHead({
   title: $t('title.globe'),
@@ -11,17 +11,10 @@ useHead({
 const route = useRoute()
 const router = useRouter()
 
-const { photos, status } = usePhotos()
-
-const photosWithLocation = computed(() => {
-  return photos.value.filter(
-    (photo) =>
-      photo.latitude !== null &&
-      photo.longitude !== null &&
-      photo.latitude !== undefined &&
-      photo.longitude !== undefined,
-  )
-})
+const { data: mapPhotos, status } = await useFetch<PhotoMarker[]>(
+  '/api/photos/map',
+  { default: () => [] },
+)
 
 const currentClusterPointId = ref<string | null>(null)
 const mapInstance = ref<any>(null)
@@ -41,11 +34,18 @@ const mapConfig = computed(() => {
 
 const provider = computed(() => mapConfig.value.provider || 'maplibre')
 const isPhotosLoaded = computed(() => {
-  return status.value !== 'pending' || photos.value.length > 0
+  return status.value !== 'pending' || mapPhotos.value.length > 0
 })
 
 const allMarkers = computed(() => {
-  return photosToMarkers(photosWithLocation.value, provider.value)
+  return mapPhotos.value.map((photo) => {
+    const [longitude, latitude] = transformCoordinate(
+      photo.longitude,
+      photo.latitude,
+      provider.value,
+    )
+    return { ...photo, longitude, latitude }
+  })
 })
 
 const visibleMarkers = computed(() => {
@@ -90,7 +90,7 @@ watch(currentClusterPointId, (newId) => {
 })
 
 const mapViewState = computed(() => {
-  if (photosWithLocation.value.length === 0) {
+  if (mapPhotos.value.length === 0) {
     const [lng, lat] = transformCoordinate(-122.4, 37.8, provider.value)
     return {
       longitude: lng,
@@ -99,8 +99,8 @@ const mapViewState = computed(() => {
     }
   }
 
-  const latitudes = photosWithLocation.value.map((photo) => photo.latitude!)
-  const longitudes = photosWithLocation.value.map((photo) => photo.longitude!)
+  const latitudes = mapPhotos.value.map((photo) => photo.latitude)
+  const longitudes = mapPhotos.value.map((photo) => photo.longitude)
 
   const minLat = Math.min(...latitudes)
   const maxLat = Math.max(...latitudes)
@@ -153,7 +153,13 @@ const onMarkerPinClick = (clusterPoint: any) => {
 
       if (provider.value === 'amap') {
         // AMap API
-        const bounds = new window.AMap.Bounds(
+        const amap = Reflect.get(window, 'AMap') as {
+          Bounds: new (
+            southWest: [number, number],
+            northEast: [number, number],
+          ) => unknown
+        }
+        const bounds = new amap.Bounds(
           [minLng - padding, minLat - padding],
           [maxLng + padding, maxLat + padding],
         )
@@ -225,7 +231,7 @@ const onMapLoaded = (map: any) => {
 
   const { photoId } = route.query
   if (photoId && typeof photoId === 'string') {
-    const photo = findDisplayPhotoById(photosWithLocation.value, photoId)
+    const photo = mapPhotos.value.find((item) => item.id === photoId)
     if (photo && photo.latitude && photo.longitude) {
       const [lng, lat] = transformCoordinate(
         photo.longitude,

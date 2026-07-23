@@ -1,0 +1,10 @@
+CREATE INDEX `album_photos_album_id_position_idx` ON `album_photos` (`album_id`,`position`);--> statement-breakpoint
+CREATE INDEX `album_photos_photo_id_idx` ON `album_photos` (`photo_id`);--> statement-breakpoint
+CREATE INDEX `photo_reactions_photo_type_idx` ON `photo_reactions` (`photo_id`,`reaction_type`);--> statement-breakpoint
+CREATE INDEX `photo_reactions_photo_fingerprint_idx` ON `photo_reactions` (`photo_id`,`fingerprint`);--> statement-breakpoint
+CREATE INDEX `photo_reactions_fingerprint_created_at_idx` ON `photo_reactions` (`fingerprint`,`created_at`);--> statement-breakpoint
+CREATE INDEX `photos_date_taken_id_idx` ON `photos` (`date_taken`,`id`);--> statement-breakpoint
+CREATE INDEX `photos_location_idx` ON `photos` (`latitude`,`longitude`);--> statement-breakpoint
+CREATE INDEX `pipeline_queue_status_created_at_idx` ON `pipeline_queue` (`status`,`created_at`);--> statement-breakpoint
+CREATE INDEX `pipeline_queue_status_priority_created_at_idx` ON `pipeline_queue` (`status`,`priority`,`created_at`);--> statement-breakpoint
+CREATE INDEX `pipeline_queue_type_created_at_idx` ON `pipeline_queue` (json_extract(`payload`, '$.type'),`created_at`);

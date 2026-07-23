@@ -19,14 +19,18 @@ const router = useRouter()
 const { switchToIndex, closeViewer, openViewer } = useViewerState()
 const { isViewerOpen, albumContext } = storeToRefs(useViewerState())
 
-const { photos } = usePhotos()
+const { photos, loadPhotoDetails } = usePhotos()
 
 // 从 URL 参数获取相册 ID
 const albumIdFromQuery = computed(() => route.query.album as string | undefined)
 
 // 如果 URL 中有相册 ID，加载相册数据
-const { data: albumData } = await useFetch(
-  () => albumIdFromQuery.value ? `/api/albums/${albumIdFromQuery.value}` : null,
+const { data: albumData } = await useAsyncData(
+  'photo-viewer-album-context',
+  async () => {
+    if (!albumIdFromQuery.value) return null
+    return $fetch(`/api/albums/${albumIdFromQuery.value}`)
+  },
   {
     watch: [albumIdFromQuery],
   },
@@ -94,12 +98,28 @@ let isProcessing = false
 
 watch(
   [photoId, albumIdFromQuery, () => albumData.value?.photos, () => photos.value],
-  ([currentPhotoId, currentAlbumId, currentAlbumPhotos, allPhotos]) => {
+  async ([currentPhotoId, currentAlbumId, currentAlbumPhotos, allPhotos]) => {
     if (isProcessing) {
       return
     }
 
     if (currentPhotoId) {
+      if (!currentAlbumId) {
+        try {
+          await loadPhotoDetails(currentPhotoId)
+          // 详情请求返回前路由可能已切换，避免打开过期照片。
+          if (
+            photoId.value !== currentPhotoId ||
+            albumIdFromQuery.value !== currentAlbumId
+          ) {
+            return
+          }
+          allPhotos = photos.value
+        } catch {
+          return
+        }
+      }
+
       // 确定使用哪个照片列表
       let photosToUse: DisplayPhoto[]
       if (currentAlbumId && currentAlbumPhotos) {

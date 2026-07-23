@@ -1,6 +1,38 @@
-import { sql, gte } from 'drizzle-orm'
+import { sql, gte, isNotNull } from 'drizzle-orm'
 import * as si from 'systeminformation'
 import { readFileSync } from 'node:fs'
+
+// 照片日历聚合缓存一分钟，避免仪表盘五秒轮询重复扫描照片日期索引。
+const PHOTO_CALENDAR_CACHE_TTL_MS = 60_000
+let photoCalendarCache:
+  | {
+      expiresAt: number
+      data: Array<{ date: string; count: number }>
+    }
+  | undefined
+
+const getPhotoCalendar = () => {
+  const now = Date.now()
+  if (photoCalendarCache && photoCalendarCache.expiresAt > now) {
+    return photoCalendarCache.data
+  }
+
+  const data = useDB()
+    .select({
+      date: sql<string>`DATE(${tables.photos.dateTaken})`,
+      count: sql<number>`count(*)`,
+    })
+    .from(tables.photos)
+    .where(isNotNull(tables.photos.dateTaken))
+    .groupBy(sql`DATE(${tables.photos.dateTaken})`)
+    .orderBy(sql`DATE(${tables.photos.dateTaken}) ASC`)
+    .all()
+  photoCalendarCache = {
+    expiresAt: now + PHOTO_CALENDAR_CACHE_TTL_MS,
+    data,
+  }
+  return data
+}
 
 async function getQueueStats() {
   const workerPool = globalThis.__workerPool
@@ -32,9 +64,11 @@ async function getDockerMemoryInfo(): Promise<{
 
     for (const line of lines) {
       if (line.startsWith('MemTotal:')) {
-        totalMem = parseInt(line.split(/\s+/)[1]) * 1024 // 转换为字节
+        const value = line.split(/\s+/)[1]
+        if (value) totalMem = parseInt(value) * 1024 // 转换为字节
       } else if (line.startsWith('MemAvailable:')) {
-        availableMem = parseInt(line.split(/\s+/)[1]) * 1024 // 转换为字节
+        const value = line.split(/\s+/)[1]
+        if (value) availableMem = parseInt(value) * 1024 // 转换为字节
       }
     }
 
@@ -190,6 +224,9 @@ export default eventHandler(async (event) => {
     .orderBy(sql`DATE(${tables.photos.dateTaken}) ASC`)
     .all()
 
+  // 热力图只返回按天聚合后的计数，避免仪表盘加载照片目录。
+  const photoCalendar = getPhotoCalendar()
+
   // Build trendData for each of the last 7 days, filling in zeros if needed
   const trendData = []
   for (let i = 0; i < 7; i++) {
@@ -234,6 +271,7 @@ export default eventHandler(async (event) => {
       maxSize: storageStats?.maxSize || 0,
     },
     trends: trendData.toReversed(),
+    photoCalendar,
     timestamp: new Date().toISOString(),
   }
 })

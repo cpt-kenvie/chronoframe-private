@@ -14,6 +14,7 @@ useHead({
 interface AlbumItem extends Album {
   photoCount?: number
   photoIds: string[]
+  previewPhotos: Photo[]
   coverPhoto?: Photo | null
 }
 
@@ -28,6 +29,12 @@ interface AlbumFormState {
 }
 
 const route = useRoute()
+const {
+  photos: catalogPhotos,
+  ensureLoaded: ensurePhotosLoaded,
+  loadMore: loadMoreCatalogPhotos,
+  hasMore: hasMorePhotos,
+} = usePhotos()
 
 const albums = ref<AlbumItem[]>([])
 const isLoadingAlbums = ref(true)
@@ -77,14 +84,10 @@ const loadAlbums = async () => {
     }))
 
     for (const album of albums.value) {
-      if (album.coverPhotoId && allPhotos.value.length > 0) {
-        const coverPhoto = allPhotos.value.find(
-          (p) => p.id === album.coverPhotoId,
-        )
-        if (coverPhoto) {
-          album.coverPhoto = coverPhoto
-        }
-      }
+      album.coverPhoto =
+        album.previewPhotos.find((photo) => photo.id === album.coverPhotoId) ??
+        album.previewPhotos[0] ??
+        null
     }
   } catch (error) {
     console.error('Failed to load albums:', error)
@@ -100,8 +103,8 @@ const loadAlbums = async () => {
 const loadPhotos = async () => {
   isLoadingPhotos.value = true
   try {
-    const { photos } = usePhotos()
-    allPhotos.value = photos.value
+    await ensurePhotosLoaded()
+    allPhotos.value = catalogPhotos.value
   } catch (error) {
     console.error('Failed to load photos:', error)
   } finally {
@@ -109,7 +112,18 @@ const loadPhotos = async () => {
   }
 }
 
-const openCreateSlideover = () => {
+const loadMorePhotos = async () => {
+  isLoadingPhotos.value = true
+  try {
+    await loadMoreCatalogPhotos()
+    allPhotos.value = catalogPhotos.value
+  } finally {
+    isLoadingPhotos.value = false
+  }
+}
+
+const openCreateSlideover = async () => {
+  await loadPhotos()
   currentAlbum.value = null
   formData.title = ''
   formData.description = ''
@@ -123,7 +137,15 @@ const openCreateSlideover = () => {
 const openEditSlideover = async (album: AlbumItem) => {
   currentAlbum.value = album
   try {
-    const albumDetail = await $fetch<AlbumDetail>(`/api/albums/${album.id}`)
+    const [albumDetail] = await Promise.all([
+      $fetch<AlbumDetail>(`/api/albums/${album.id}`),
+      loadPhotos(),
+    ])
+    const photosById = new Map(
+      allPhotos.value.map((photo) => [photo.id, photo]),
+    )
+    for (const photo of albumDetail.photos) photosById.set(photo.id, photo)
+    allPhotos.value = Array.from(photosById.values())
     formData.title = album.title
     formData.description = album.description || ''
     formData.isHidden = album.isHidden || false
@@ -332,12 +354,12 @@ const filteredPhotos = computed(() => {
 const activePhotoSelectorPhotos = filteredPhotos
 
 onMounted(async () => {
-  await Promise.all([loadPhotos(), loadAlbums()])
+  await loadAlbums()
 })
 
 watch(() => route.path, async () => {
   if (route.path === '/dashboard/albums') {
-    await Promise.all([loadPhotos(), loadAlbums()])
+    await loadAlbums()
   }
 })
 
@@ -927,6 +949,21 @@ const columns: any[] = [
                       </button>
                     </div>
                   </div>
+                </div>
+
+                <div
+                  v-if="photoSelectorMode === 'photos' && hasMorePhotos"
+                  class="flex justify-center py-6"
+                >
+                  <UButton
+                    color="neutral"
+                    variant="soft"
+                    icon="tabler:chevron-down"
+                    :loading="isLoadingPhotos"
+                    @click="loadMorePhotos"
+                  >
+                    {{ $t('common.loadMore') }}
+                  </UButton>
                 </div>
 
                 <div

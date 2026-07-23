@@ -3,7 +3,8 @@ useHead({
   title: '',
 })
 
-const { photos } = usePhotos()
+const { photos, ensureLoaded } = usePhotos()
+await ensureLoaded()
 </script>
 
 <template>

@@ -1,10 +1,11 @@
 import type { AsyncDataRequestStatus } from '#app'
-import type { Album } from '~~/server/utils/db'
+import type { Album, Photo } from '~~/server/utils/db'
 
 const ALBUMS_DATA_KEY = 'albums' // Nuxt async data key shared by every album list consumer.
 
 export interface AlbumListItem extends Album {
   photoIds: string[]
+  previewPhotos: Photo[]
 }
 
 interface AlbumsContext {

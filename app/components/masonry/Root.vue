@@ -14,6 +14,7 @@ const router = useRouter()
 
 const { filteredPhotos, hasActiveFilters } = usePhotoFilters()
 const { sortedPhotos } = usePhotoSort()
+const { loadMore, hasMore, status } = usePhotos()
 
 const displayPhotos = computed(() => {
   return hasActiveFilters.value ? filteredPhotos.value : sortedPhotos.value
@@ -37,6 +38,17 @@ const processedBatch = ref(new Set<string>())
 const headerRef = ref<HTMLElement>()
 const headerHeight = ref(0)
 const headerColumnWidth = ref(0)
+const loadMoreTrigger = ref<HTMLElement>()
+
+useIntersectionObserver(
+  loadMoreTrigger,
+  ([entry]) => {
+    if (entry?.isIntersecting && hasMore.value && status.value !== 'pending') {
+      void loadMore()
+    }
+  },
+  { rootMargin: '600px 0px' },
+)
 
 const columnWidth = computed(() => {
   if (props.columns === 'auto') {
@@ -444,6 +456,17 @@ watch(currentPhotoIndex, (newIndex) => {
             />
           </template>
         </MasonryWall>
+        <div
+          v-if="hasMore"
+          ref="loadMoreTrigger"
+          class="flex h-24 items-center justify-center"
+        >
+          <Icon
+            v-if="status === 'pending'"
+            name="tabler:loader-2"
+            class="size-6 animate-spin text-neutral-400"
+          />
+        </div>
       </div>
     </div>
   </div>

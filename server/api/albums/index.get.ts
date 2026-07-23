@@ -1,67 +1,94 @@
+import { asc, desc, eq, inArray } from 'drizzle-orm'
+import {
+  photoListSelection,
+  toPhotoListItem,
+} from '~~/server/utils/photoResponse'
+
+// 相册卡片最多返回三张预览照片，避免列表页依赖完整照片目录。
+const ALBUM_PREVIEW_PHOTO_COUNT = 3
+
 export default eventHandler(async (event) => {
   const db = useDB()
   const session = await getUserSession(event)
-  const isLoggedIn = !!session.user
+  const isLoggedIn = Boolean(session.user)
 
-  // 获取所有相册，按创建时间倒序
-  let albumsQuery = db.select().from(tables.albums)
+  const albums = db
+    .select()
+    .from(tables.albums)
+    .where(isLoggedIn ? undefined : eq(tables.albums.isHidden, false))
+    .orderBy(desc(tables.albums.createdAt))
+    .all()
 
+  if (albums.length === 0) return []
+
+  const albumIds = albums.map((album) => album.id)
+  const albumPhotoRows = db
+    .select({
+      albumId: tables.albumPhotos.albumId,
+      photoId: tables.albumPhotos.photoId,
+      position: tables.albumPhotos.position,
+    })
+    .from(tables.albumPhotos)
+    .where(inArray(tables.albumPhotos.albumId, albumIds))
+    .orderBy(asc(tables.albumPhotos.albumId), asc(tables.albumPhotos.position))
+    .all()
+
+  const hiddenPhotoIds = new Set<string>()
   if (!isLoggedIn) {
-    albumsQuery = albumsQuery.where(eq(tables.albums.isHidden, 0))
-  }
-
-  const albums = await albumsQuery
-
-  // 如果用户未登录，获取所有隐藏相册中的照片ID，用于过滤
-  let hiddenPhotoIds: string[] = []
-  if (!isLoggedIn) {
-    const hiddenAlbumIds = db
-      .select({ id: tables.albums.id })
-      .from(tables.albums)
-      .where(eq(tables.albums.isHidden, 1))
+    const hiddenRows = db
+      .select({ photoId: tables.albumPhotos.photoId })
+      .from(tables.albumPhotos)
+      .innerJoin(
+        tables.albums,
+        eq(tables.albumPhotos.albumId, tables.albums.id),
+      )
+      .where(eq(tables.albums.isHidden, true))
       .all()
-      .map((album) => album.id)
-
-    if (hiddenAlbumIds.length > 0) {
-      hiddenPhotoIds = db
-        .select({ photoId: tables.albumPhotos.photoId })
-        .from(tables.albumPhotos)
-        .where(inArray(tables.albumPhotos.albumId, hiddenAlbumIds))
-        .all()
-        .map((row) => row.photoId)
-    }
+    for (const row of hiddenRows) hiddenPhotoIds.add(row.photoId)
   }
 
-  // 为每个相册获取照片 ID 列表（避免循环引用）
-  const albumsWithPhotoIds = await Promise.all(
-    albums.map(async (album) => {
-      const photoIds = await db
-        .select({
-          photoId: tables.albumPhotos.photoId,
-          position: tables.albumPhotos.position,
-        })
-        .from(tables.albumPhotos)
-        .where(eq(tables.albumPhotos.albumId, album.id))
-        .orderBy(tables.albumPhotos.position)
+  const photoIdsByAlbum = new Map<number, string[]>()
+  for (const row of albumPhotoRows) {
+    if (hiddenPhotoIds.has(row.photoId)) continue
+    const photoIds = photoIdsByAlbum.get(row.albumId)
+    if (photoIds) photoIds.push(row.photoId)
+    else photoIdsByAlbum.set(row.albumId, [row.photoId])
+  }
 
-      // 如果用户未登录，过滤掉在隐藏相册中的照片
-      const filteredPhotoIds = !isLoggedIn
-        ? photoIds.filter((p) => !hiddenPhotoIds.includes(p.photoId))
-        : photoIds
+  const previewIdsByAlbum = new Map<number, string[]>()
+  const allPreviewPhotoIds = new Set<string>()
+  for (const album of albums) {
+    const photoIds = photoIdsByAlbum.get(album.id) ?? []
+    const previewIds: string[] = []
+    if (album.coverPhotoId && !hiddenPhotoIds.has(album.coverPhotoId)) {
+      previewIds.push(album.coverPhotoId)
+    }
+    for (const photoId of photoIds) {
+      if (previewIds.length >= ALBUM_PREVIEW_PHOTO_COUNT) break
+      if (!previewIds.includes(photoId)) previewIds.push(photoId)
+    }
+    previewIdsByAlbum.set(album.id, previewIds)
+    for (const photoId of previewIds) allPreviewPhotoIds.add(photoId)
+  }
 
-      return {
-        ...album,
-        // 即使是空相册，也返回空数组而不是 undefined
-        photoIds:
-          filteredPhotoIds.length > 0
-            ? filteredPhotoIds.map((p) => p.photoId)
-            : [],
-      }
-    }),
+  const previewPhotos =
+    allPreviewPhotoIds.size > 0
+      ? db
+          .select(photoListSelection)
+          .from(tables.photos)
+          .where(inArray(tables.photos.id, Array.from(allPreviewPhotoIds)))
+          .all()
+          .map(toPhotoListItem)
+      : []
+  const previewPhotoById = new Map(
+    previewPhotos.map((photo) => [photo.id, photo]),
   )
 
-  // 按创建时间倒序排列
-  return albumsWithPhotoIds.sort(
-    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-  )
+  return albums.map((album) => ({
+    ...album,
+    photoIds: photoIdsByAlbum.get(album.id) ?? [],
+    previewPhotos: (previewIdsByAlbum.get(album.id) ?? [])
+      .map((photoId) => previewPhotoById.get(photoId))
+      .filter((photo) => photo !== undefined),
+  }))
 })

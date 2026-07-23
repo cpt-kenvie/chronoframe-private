@@ -424,6 +424,7 @@
   },
   "common": {
     "unknown": "未知",
+    "loadMore": "加载更多",
     "months": {
       "jan": "一月",
       "feb": "二月",

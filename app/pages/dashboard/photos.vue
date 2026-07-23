@@ -96,7 +96,16 @@ const uploadAccept = computed(() => {
 const route = useRoute()
 const dayjs = useDayjs()
 
-const { status, refresh } = usePhotos()
+const {
+  status,
+  refresh,
+  ensureLoaded,
+  loadMore,
+  hasMore,
+  totalCount,
+  loadedCount,
+} = usePhotos()
+await ensureLoaded()
 const {
   filteredPhotos,
   selectedCounts,
@@ -105,6 +114,7 @@ const {
   albums,
   refreshAlbums,
 } = usePhotoFilters()
+await refreshAlbums()
 
 const totalSelectedFilters = computed(() => {
   return Object.values(selectedCounts.value).reduce(
@@ -821,6 +831,7 @@ watch(isEditModalOpen, (open) => {
       tags: [],
       location: null,
       rating: null,
+      isPanorama360: false,
     }
     locationSelection.value = null
     locationTouched.value = false
@@ -1112,7 +1123,7 @@ const columns: TableColumn<Photo>[] = [
 
       const isInHiddenAlbum = photoAlbums?.some(albumId => {
         const album = albums.value?.find(a => a.id === albumId)
-        return album?.isHidden === 1 || album?.isHidden === true
+        return album?.isHidden === true
       })
 
       return h('div', { class: 'relative inline-block size-16 min-w-[100px]' }, [
@@ -3088,6 +3099,22 @@ onUnmounted(() => {
                 </UButton>
               </div>
             </div>
+          </div>
+          <div
+            v-if="hasMore"
+            class="flex items-center justify-center gap-3 border-t border-neutral-200 px-4 py-3 text-sm text-neutral-500 dark:border-neutral-700 dark:text-neutral-400"
+          >
+            <span>{{ loadedCount }} / {{ totalCount }}</span>
+            <UButton
+              size="sm"
+              color="neutral"
+              variant="soft"
+              icon="tabler:chevron-down"
+              :loading="status === 'pending'"
+              @click="loadMore"
+            >
+              {{ $t('common.loadMore') }}
+            </UButton>
           </div>
         </div>
 

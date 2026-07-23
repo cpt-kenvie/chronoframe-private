@@ -2,7 +2,6 @@
 import dayjsLocale_zhCN from 'dayjs/locale/zh-cn'
 import dayjsLocale_zhTW from 'dayjs/locale/zh-tw'
 import dayjsLocale_zhHK from 'dayjs/locale/zh-hk'
-import { mergePanoramaPhotoVariants } from '~/libs/panorama/photo-variants'
 
 const router = useRouter()
 const dayjs = useDayjs()
@@ -22,9 +21,8 @@ useHead({
     `${title ? title + ' | ' : ''}${appTitle.value || 'ChronoFrame'}`,
 })
 
-const { data, refresh, status } = useFetch('/api/photos')
-const rawPhotos = computed(() => (data.value as Photo[]) || [])
-const photos = computed(() => mergePanoramaPhotoVariants(rawPhotos.value))
+// 根组件只提供照片目录状态，具体页面按需触发分页加载。
+const { photos } = providePhotos()
 
 const { switchToIndex, closeViewer, clearReturnRoute } = useViewerState()
 const { currentPhotoIndex, isViewerOpen, returnRoute, isDirectAccess, albumContext } =
@@ -97,24 +95,18 @@ provide(
 <template>
   <UApp>
     <NuxtLoadingIndicator />
-    <PhotosProvider
-      :photos="photos"
-      :refresh="refresh"
-      :status="status"
-    >
-      <NuxtLayout>
-        <NuxtPage />
-      </NuxtLayout>
-      <ClientOnly>
-        <PhotoViewer
-          :photos="displayPhotos"
-          :current-index="currentPhotoIndex"
-          :is-open="isViewerOpen"
-          @close="handleClose"
-          @index-change="handleIndexChange"
-        />
-      </ClientOnly>
-    </PhotosProvider>
+    <NuxtLayout>
+      <NuxtPage />
+    </NuxtLayout>
+    <ClientOnly>
+      <PhotoViewer
+        :photos="displayPhotos"
+        :current-index="currentPhotoIndex"
+        :is-open="isViewerOpen"
+        @close="handleClose"
+        @index-change="handleIndexChange"
+      />
+    </ClientOnly>
   </UApp>
 </template>
 

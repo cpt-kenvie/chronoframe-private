@@ -423,6 +423,7 @@
     }
   },
   "common": {
+    "loadMore": "載入更多",
     "months": {
       "jan": "一月",
       "feb": "二月",

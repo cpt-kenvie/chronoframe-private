@@ -85,6 +85,13 @@
       "when": 1766239200000,
       "tag": "0011_add_panorama_360_flag",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1784793362285,
+      "tag": "0012_smooth_mentor",
+      "breakpoints": true
     }
   ]
 }

@@ -12,7 +12,6 @@ useHead({
 
 const dayjs = useDayjs()
 const config = useRuntimeConfig()
-const { photos } = usePhotos()
 const { locale } = useI18n({ useScope: 'global' })
 
 const { data: dashboardStats, refresh: refreshStats } =
@@ -65,23 +64,21 @@ const systemStatus = computed(() => {
 
 // 获取所有有照片的年份
 const availableYears = computed(() => {
-  if (!photos.value || photos.value.length === 0) return []
+  const calendar = dashboardStats.value?.photoCalendar ?? []
+  if (calendar.length === 0) return []
 
   const years = new Set<number>()
-  photos.value.forEach((photo) => {
-    if (photo.dateTaken) {
-      const year = dayjs(photo.dateTaken).year()
-      years.add(year)
-    }
+  calendar.forEach((item) => {
+    const year = dayjs(item.date).year()
+    years.add(year)
   })
 
   return Array.from(years).sort((a, b) => b - a) // 降序排列，最新年份在前
 })
 
 const heatmapData = computed(() => {
-  if (!photos.value || photos.value.length === 0) return []
-
-  const dateCountMap = new Map<string, number>()
+  const calendar = dashboardStats.value?.photoCalendar ?? []
+  if (calendar.length === 0) return []
 
   // 计算起止范围
   let start, end
@@ -93,20 +90,10 @@ const heatmapData = computed(() => {
     end = dayjs(`${selectedYear.value}-01-01`).endOf('year')
   }
 
-  photos.value.forEach((photo) => {
-    if (!photo.dateTaken) return
-    const photoDate = dayjs(photo.dateTaken)
-
-    if (photoDate.isBetween(start, end, 'day', '[]')) {
-      const date = photoDate.format('YYYY-MM-DD')
-      dateCountMap.set(date, (dateCountMap.get(date) || 0) + 1)
-    }
+  return calendar.filter((item) => {
+    const photoDate = dayjs(item.date)
+    return photoDate.isBetween(start, end, 'day', '[]')
   })
-
-  return Array.from(dateCountMap.entries()).map(([date, count]) => ({
-    date,
-    count,
-  }))
 })
 
 const heatmapStartDate = computed(() => {

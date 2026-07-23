@@ -1,22 +1,8 @@
 import { asc, getTableColumns } from 'drizzle-orm'
 import z from 'zod'
-import { resolveOriginalKeyForPhoto, toFileProxyUrl } from '~~/server/utils/publicFile'
+import { withPhotoUrls } from '~~/server/utils/photoResponse'
 
 export default eventHandler(async (event) => {
-  const toUrl = (key?: string | null) => {
-    if (!key) return null
-    return toFileProxyUrl(key)
-  }
-  const withUrls = (photo: any) => {
-    const originalKey = resolveOriginalKeyForPhoto(photo.storageKey) || photo.storageKey
-    return {
-      ...photo,
-      originalUrl: toUrl(originalKey),
-      thumbnailUrl: toUrl(photo.thumbnailKey),
-      livePhotoVideoUrl: toUrl(photo.livePhotoVideoKey),
-    }
-  }
-
   const { albumId } = await getValidatedRouterParams(
     event,
     z.object({
@@ -58,7 +44,7 @@ export default eventHandler(async (event) => {
     const hiddenAlbumIds = db
       .select({ id: tables.albums.id })
       .from(tables.albums)
-      .where(eq(tables.albums.isHidden, 1))
+      .where(eq(tables.albums.isHidden, true))
       .all()
       .map((album) => album.id)
 
@@ -88,8 +74,9 @@ export default eventHandler(async (event) => {
     .all()
 
   // 如果用户未登录，过滤掉在隐藏相册中的照片
+  const hiddenPhotoIdSet = new Set(hiddenPhotoIds)
   const filteredPhotos = !isLoggedIn
-    ? photos.filter((photo) => !hiddenPhotoIds.includes(photo.id))
+    ? photos.filter((photo) => !hiddenPhotoIdSet.has(photo.id))
     : photos
 
   // 验证相册数据完整性
@@ -103,6 +90,6 @@ export default eventHandler(async (event) => {
 
   return {
     ...album,
-    photos: filteredPhotos.map(withUrls),
+    photos: filteredPhotos.map(withPhotoUrls),
   }
 })

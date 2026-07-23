@@ -424,6 +424,7 @@
   },
   "common": {
     "unknown": "unknown",
+    "loadMore": "Load more",
     "months": {
       "jan": "Jan",
       "feb": "Feb",

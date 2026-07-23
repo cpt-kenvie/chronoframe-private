@@ -423,6 +423,7 @@
     }
   },
   "common": {
+    "loadMore": "さらに読み込む",
     "months": {
       "jan": "1月",
       "feb": "2月",
