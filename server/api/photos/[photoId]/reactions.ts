@@ -139,7 +139,7 @@ export default defineEventHandler(async (event) => {
     const ipAddress = getRequestIP(event, { xForwardedFor: true })
     const userAgent = headers['user-agent']
     
-    // 检查用户是否已经对该照片表态
+    // 仅用于保持响应中的操作类型，实际写入由唯一约束保证原子性
     const existingReaction = await db
       .select()
       .from(tables.photoReactions)
@@ -150,68 +150,57 @@ export default defineEventHandler(async (event) => {
         )
       )
       .get()
-    
-    if (existingReaction) {
-      // 更新现有表态
-      await db
-        .update(tables.photoReactions)
-        .set({
-          reactionType,
-          updatedAt: new Date(),
-        })
-        .where(eq(tables.photoReactions.id, existingReaction.id))
-      
-      return {
-        success: true,
-        action: 'updated',
+
+    await db
+      .insert(tables.photoReactions)
+      .values({
+        photoId,
         reactionType,
-      }
-    } else {
-      // 创建新表态
-      await db
-        .insert(tables.photoReactions)
-        .values({
-          photoId,
+        fingerprint,
+        ipAddress,
+        userAgent,
+      })
+      .onConflictDoUpdate({
+        target: [
+          tables.photoReactions.photoId,
+          tables.photoReactions.fingerprint,
+        ],
+        set: {
           reactionType,
-          fingerprint,
           ipAddress,
           userAgent,
-        })
-      
-      return {
-        success: true,
-        action: 'created',
-        reactionType,
-      }
+          updatedAt: new Date(),
+        },
+      })
+
+    return {
+      success: true,
+      action: existingReaction ? 'updated' : 'created',
+      reactionType,
     }
   }
   
   // DELETE: 删除表态
   if (method === 'DELETE') {
     const fingerprint = generateFingerprint(event)
-    
-    const existingReaction = await db
-      .select()
-      .from(tables.photoReactions)
+
+    const result = await db
+      .delete(tables.photoReactions)
       .where(
         and(
           eq(tables.photoReactions.photoId, photoId),
-          eq(tables.photoReactions.fingerprint, fingerprint)
+          eq(tables.photoReactions.fingerprint, fingerprint),
         )
       )
-      .get()
-    
-    if (!existingReaction) {
+      .run()
+
+    if (result.changes === 0) {
       throw createError({
         statusCode: 404,
         message: 'Reaction not found',
       })
     }
-    
-    await db
-      .delete(tables.photoReactions)
-      .where(eq(tables.photoReactions.id, existingReaction.id))
-    
+
     return {
       success: true,
       action: 'deleted',

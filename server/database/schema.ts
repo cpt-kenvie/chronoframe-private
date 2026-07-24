@@ -188,7 +188,7 @@ export const photoReactions = sqliteTable(
       table.photoId,
       table.reactionType,
     ),
-    index('photo_reactions_photo_fingerprint_idx').on(
+    uniqueIndex('photo_reactions_photo_fingerprint_idx').on(
       table.photoId,
       table.fingerprint,
     ),

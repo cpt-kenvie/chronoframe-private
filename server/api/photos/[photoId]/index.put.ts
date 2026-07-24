@@ -4,6 +4,7 @@ import path from 'node:path'
 import { z } from 'zod'
 import { exiftool } from 'exiftool-vendored'
 import { eq } from 'drizzle-orm'
+import { isError } from 'h3'
 
 import { extractExifData } from '~~/server/services/image/exif'
 import { tables, useDB } from '~~/server/utils/db'
@@ -481,6 +482,10 @@ export default eventHandler(async (event) => {
       photo: updatedPhoto ? withUrls(updatedPhoto) : null,
     }
   } catch (error) {
+    if (isError(error)) {
+      throw error
+    }
+
     logger.image.error('Failed to update photo metadata', error)
     throw createError({
       statusCode: 500,

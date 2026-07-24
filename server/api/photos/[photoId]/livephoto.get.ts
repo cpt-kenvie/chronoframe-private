@@ -1,4 +1,5 @@
 import { eq } from 'drizzle-orm'
+import { isError } from 'h3'
 import { resolveOriginalKeyForPhoto, toFileProxyUrl } from '~~/server/utils/publicFile'
 
 export default eventHandler(async (event) => {
@@ -27,15 +28,15 @@ export default eventHandler(async (event) => {
       .where(eq(tables.photos.id, photoId))
       .limit(1)
     
-    if (photos.length === 0) {
+    const [photo] = photos
+
+    if (!photo) {
       throw createError({
         statusCode: 404,
         statusMessage: 'Photo not found',
       })
     }
-    
-    const photo = photos[0]
-    
+
     const originalKey = resolveOriginalKeyForPhoto(photo.storageKey) || photo.storageKey
 
     return {
@@ -47,6 +48,10 @@ export default eventHandler(async (event) => {
       thumbnailUrl: toUrl(photo.thumbnailKey),
     }
   } catch (error) {
+    if (isError(error)) {
+      throw error
+    }
+
     logger.chrono.error('Failed to get photo details:', error)
     throw createError({
       statusCode: 500,

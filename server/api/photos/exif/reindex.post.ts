@@ -1,4 +1,5 @@
 import { eq, isNotNull, inArray, and } from 'drizzle-orm'
+import { isError } from 'h3'
 import {
   extractExifData,
   extractPhotoInfo,
@@ -209,6 +210,10 @@ export default eventHandler(async (event) => {
       })
     }
   } catch (error) {
+    if (isError(error)) {
+      throw error
+    }
+
     logger.chrono.error('Failed to reindex EXIF data:', error)
     throw createError({
       statusCode: 500,

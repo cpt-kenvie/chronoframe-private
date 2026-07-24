@@ -3,6 +3,7 @@ import {
   scanAndProcessExistingLivePhotos,
 } from '~~/server/services/video/scanner'
 import { eq } from 'drizzle-orm'
+import { isError } from 'h3'
 import { findLivePhotoVideoForImage } from '~~/server/services/video/livephoto'
 import { batchTestLivePhotoDetection } from '~~/server/services/video/test-utils'
 import { toFileProxyUrl } from '~~/server/utils/publicFile'
@@ -119,6 +120,10 @@ export default eventHandler(async (event) => {
         })
     }
   } catch (error) {
+    if (isError(error)) {
+      throw error
+    }
+
     logger.chrono.error('LivePhoto management error:', error)
     throw createError({
       statusCode: 500,

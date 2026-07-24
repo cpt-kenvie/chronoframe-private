@@ -1,4 +1,5 @@
 import z from 'zod'
+import { isError } from 'h3'
 
 export default defineEventHandler(async (event) => {
   await requireUserSession(event)
@@ -29,6 +30,10 @@ export default defineEventHandler(async (event) => {
 
     return taskStats
   } catch (error) {
+    if (isError(error)) {
+      throw error
+    }
+
     throw createError({
       statusCode: 500,
       statusMessage:

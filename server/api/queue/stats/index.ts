@@ -1,3 +1,5 @@
+import { isError } from 'h3'
+
 export default defineEventHandler(async (event) => {
   await requireUserSession(event)
 
@@ -24,6 +26,10 @@ export default defineEventHandler(async (event) => {
       queue: queueStats,
     }
   } catch (error) {
+    if (isError(error)) {
+      throw error
+    }
+
     throw createError({
       statusCode: 500,
       statusMessage:

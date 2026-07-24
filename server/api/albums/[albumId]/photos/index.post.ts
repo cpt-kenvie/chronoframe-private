@@ -22,6 +22,7 @@ export default eventHandler(async (event) => {
   )
 
   const db = useDB()
+  const photoIds = [...new Set(body.photoIds)]
 
   // 检查相册是否存在
   const album = await db
@@ -41,10 +42,10 @@ export default eventHandler(async (event) => {
   const photos = await db
     .select()
     .from(tables.photos)
-    .where(inArray(tables.photos.id, body.photoIds))
+    .where(inArray(tables.photos.id, photoIds))
     .all()
 
-  if (photos.length !== body.photoIds.length) {
+  if (photos.length !== photoIds.length) {
     throw createError({
       statusCode: 404,
       statusMessage: 'Some photos not found',
@@ -61,11 +62,13 @@ export default eventHandler(async (event) => {
       .get()
 
     let position = maxPosition?.maxPos || 1000000
+    let addedCount = 0
 
     // 添加照片到相册
-    for (const photoId of body.photoIds) {
+    for (const photoId of photoIds) {
       position += 10
-      tx.insert(tables.albumPhotos)
+      const insertResult = tx
+        .insert(tables.albumPhotos)
         .values({
           albumId,
           photoId,
@@ -74,6 +77,7 @@ export default eventHandler(async (event) => {
         })
         .onConflictDoNothing()
         .run()
+      addedCount += insertResult.changes
     }
 
     // 更新相册的 updatedAt
@@ -82,7 +86,7 @@ export default eventHandler(async (event) => {
       .where(eq(tables.albums.id, albumId))
       .run()
 
-    return { success: true, addedCount: body.photoIds.length }
+    return { success: true, addedCount }
   })
 
   return result
