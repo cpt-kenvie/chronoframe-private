@@ -1,6 +1,8 @@
 import path from 'node:path'
 import { requirePhotoFileAccess } from '~~/server/utils/photoFileAccess'
+import { parseByteRange } from '~~/server/utils/httpRange'
 import { useStorageProvider } from '~~/server/utils/useStorageProvider'
+import { resolveLivePhotoPlaybackKey } from '~~/server/services/video/livephoto'
 
 const guessContentTypeFromKey = (key: string): string => {
   const ext = path.extname(key).toLowerCase()
@@ -52,13 +54,22 @@ export default eventHandler(async (event) => {
   const key = normalizeKeyFromParam(rawParam)
   const { storageProvider } = useStorageProvider(event)
   const { isAuthenticated } = await requirePhotoFileAccess(event, key)
+  const playbackKey = await resolveLivePhotoPlaybackKey(key)
 
-  const buffer = await storageProvider.get(key)
-  if (!buffer) {
+  const metadata = await storageProvider.getFileMeta(playbackKey)
+  if (!metadata) {
     throw createError({ statusCode: 404, statusMessage: 'Not Found' })
   }
+  const size = metadata.size
+  if (size === undefined || !Number.isSafeInteger(size) || size < 0) {
+    throw createError({
+      statusCode: 502,
+      statusMessage: 'Storage provider did not return a valid file size',
+    })
+  }
 
-  setHeader(event, 'Content-Type', guessContentTypeFromKey(key))
+  setHeader(event, 'Content-Type', guessContentTypeFromKey(playbackKey))
+  setHeader(event, 'Accept-Ranges', 'bytes')
 
   // 相册可见性可能变化，公开响应必须在每次使用前重新校验。
   setHeader(
@@ -69,21 +80,35 @@ export default eventHandler(async (event) => {
 
   const range = getHeader(event, 'range')
   if (range) {
-    const matches = /^bytes=(\d*)-(\d*)$/.exec(range)
-    if (matches) {
-      const size = buffer.length
-      const start = matches[1] ? Number.parseInt(matches[1], 10) : 0
-      const end = matches[2] ? Number.parseInt(matches[2], 10) : size - 1
-      if (Number.isFinite(start) && Number.isFinite(end) && start <= end && end < size) {
-        event.node.res.statusCode = 206
-        setHeader(event, 'Accept-Ranges', 'bytes')
-        setHeader(event, 'Content-Range', `bytes ${start}-${end}/${size}`)
-        setHeader(event, 'Content-Length', String(end - start + 1))
-        return buffer.subarray(start, end + 1)
-      }
+    const parsedRange = parseByteRange(range, size)
+    if (!parsedRange) {
+      event.node.res.statusCode = 416
+      setHeader(event, 'Content-Range', `bytes */${size}`)
+      setHeader(event, 'Content-Length', 0)
+      event.node.res.end()
+      return
     }
+
+    const result = await storageProvider.getStream(playbackKey, parsedRange)
+    if (!result) {
+      throw createError({ statusCode: 404, statusMessage: 'Not Found' })
+    }
+
+    event.node.res.statusCode = 206
+    setHeader(
+      event,
+      'Content-Range',
+      `bytes ${parsedRange.start}-${parsedRange.end}/${size}`,
+    )
+    setHeader(event, 'Content-Length', result.contentLength)
+    return sendStream(event, result.stream)
   }
 
-  setHeader(event, 'Content-Length', String(buffer.length))
-  return buffer
+  const result = await storageProvider.getStream(playbackKey)
+  if (!result) {
+    throw createError({ statusCode: 404, statusMessage: 'Not Found' })
+  }
+
+  setHeader(event, 'Content-Length', size)
+  return sendStream(event, result.stream)
 })

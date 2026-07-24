@@ -1,5 +1,16 @@
+import { Readable } from 'node:stream'
 import type { Logger } from '../../../utils/logger'
-import type { StorageProvider, StorageObject } from '../interfaces'
+import type {
+  StorageByteRange,
+  StorageObject,
+  StorageProvider,
+  StorageReadResult,
+} from '../interfaces'
+
+const toRecord = (value: unknown): Record<string, unknown> | null =>
+  typeof value === 'object' && value !== null
+    ? (value as Record<string, unknown>)
+    : null
 
 /**
  * OpenListStorageProvider implements StorageProvider for OpenList API.
@@ -66,6 +77,26 @@ export class OpenListStorageProvider implements StorageProvider {
     return key.startsWith('/') ? key : `/${key}`
   }
 
+  private async getDownloadResponse(
+    key: string,
+    range?: StorageByteRange,
+  ): Promise<Response | null> {
+    const headers = range
+      ? { Range: `bytes=${range.start}-${range.end}` }
+      : undefined
+    const downloadPath = this.config.downloadEndpoint
+
+    if (!downloadPath) {
+      const info = await this.getFileMeta(key)
+      if (!info?.rawUrl) return null
+      return await fetch(info.rawUrl, { headers })
+    }
+
+    const rootedKey = this.withRoot(key)
+    const urlPath = `${downloadPath}?${encodeURIComponent(this.pathField)}=${encodeURIComponent(rootedKey)}`
+    return await this.request(urlPath, { method: 'GET', headers })
+  }
+
   async create(key: string, fileBuffer: Buffer, contentType?: string): Promise<StorageObject> {
     const rootedKey = this.withRoot(key)
     const absoluteKey = this.toAbsolutePath(rootedKey)
@@ -129,26 +160,46 @@ export class OpenListStorageProvider implements StorageProvider {
   }
 
   async get(key: string): Promise<Buffer | null> {
-    // If download endpoint is not provided, try to resolve raw_url via meta and fetch it
-    const downloadPath = this.config.downloadEndpoint
-    if (!downloadPath) {
-      const info = await this.getFileMeta(this.withRoot(key))
-      const rawUrl = (info as any)?.raw_url || undefined
-      if (!rawUrl) return null
-      const resp = await fetch(rawUrl)
-      if (!resp.ok) return null
-      const arrayBuffer = await resp.arrayBuffer().catch(() => null)
-      if (!arrayBuffer) return null
-      return Buffer.from(arrayBuffer)
+    const result = await this.getStream(key)
+    if (!result) return null
+
+    const chunks: Buffer[] = []
+    for await (const chunk of result.stream) {
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk))
+    }
+    return Buffer.concat(chunks)
+  }
+
+  async getStream(
+    key: string,
+    range?: StorageByteRange,
+  ): Promise<StorageReadResult | null> {
+    const response = await this.getDownloadResponse(key, range)
+    if (!response?.ok || !response.body) return null
+
+    if (range && response.status !== 206) {
+      await response.body.cancel()
+      throw new Error('OpenList download endpoint does not support byte ranges')
     }
 
-    const rootedKey = this.withRoot(key)
-    const urlPath = `${downloadPath}?${encodeURIComponent(this.pathField)}=${encodeURIComponent(rootedKey)}`
-    const resp = await this.request(urlPath, { method: 'GET' })
-    if (!resp.ok) return null
-    const arrayBuffer = await resp.arrayBuffer().catch(() => null)
-    if (!arrayBuffer) return null
-    return Buffer.from(arrayBuffer)
+    const contentLengthHeader = response.headers.get('content-length')
+    const contentLength = contentLengthHeader
+      ? Number.parseInt(contentLengthHeader, 10)
+      : range
+        ? range.end - range.start + 1
+        : 0
+    const totalSizeMatch = /\/(\d+)$/.exec(
+      response.headers.get('content-range') ?? '',
+    )
+    const size = totalSizeMatch?.[1]
+      ? Number.parseInt(totalSizeMatch[1], 10)
+      : contentLength
+
+    return {
+      stream: Readable.from(response.body as AsyncIterable<Uint8Array>),
+      size,
+      contentLength,
+    }
   }
 
   getPublicUrl(key: string): string {
@@ -165,7 +216,7 @@ export class OpenListStorageProvider implements StorageProvider {
     const metaPath = this.config.metaEndpoint || this.config.downloadEndpoint || '/api/fs/get'
     const rootedKey = this.withRoot(key)
     const urlPath = metaPath
-    const payload: Record<string, any> = {
+    const payload: Record<string, unknown> = {
       [this.pathField]: this.toAbsolutePath(rootedKey),
       password: '',
       page: 1,
@@ -179,21 +230,23 @@ export class OpenListStorageProvider implements StorageProvider {
       return null
     }
 
-    const data = (await resp.json().catch(() => null)) as any
+    const data = toRecord(await resp.json().catch(() => null))
     if (!data) return { key }
-    const node = data?.data || {}
-    const size = node?.size
-    const modified = node?.modified || node?.lastModified
-    const etag = node?.etag
-    const rawUrl = node?.raw_url
+    const node = toRecord(data.data) ?? {}
+    const size = node.size
+    const modified = node.modified ?? node.lastModified
+    const etag = node.etag
+    const rawUrl = node.raw_url
     const result: StorageObject = {
       key: rootedKey,
       size: typeof size === 'number' ? size : undefined,
-      lastModified: modified ? new Date(modified) : undefined,
+      lastModified:
+        typeof modified === 'string' || typeof modified === 'number'
+          ? new Date(modified)
+          : undefined,
       etag: typeof etag === 'string' ? etag : undefined,
+      rawUrl: typeof rawUrl === 'string' ? rawUrl : undefined,
     }
-    // Attach raw_url as non-standard property for internal usage
-    ;(result as any).raw_url = typeof rawUrl === 'string' ? rawUrl : undefined
     return result
   }
 

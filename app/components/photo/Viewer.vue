@@ -90,13 +90,11 @@ const isLivePhotoPlaying = ref(false)
 const isLivePhotoTouching = ref(false)
 const isLivePhotoMuted = ref(true)
 const touchCount = ref(0)
-const livePhotoVideoBlob = ref<Blob | null>(null)
-const livePhotoVideoBlobUrl = ref<string | null>(null)
+const preparedLivePhotoUrl = ref<string | null>(null)
 const livePhotoVideoRef = useDomRef()
 const longPressTimer = ref<NodeJS.Timeout | null>(null)
 
-// Import LivePhoto processor
-const { convertMovToMp4, getProcessingState } = useLivePhotoProcessor()
+const { prepareLivePhotoVideo, getProcessingState } = useLivePhotoProcessor()
 
 // Computed
 const currentPhoto = computed(() => props.photos[props.currentIndex])
@@ -146,11 +144,7 @@ watch(
         clearTimeout(longPressTimer.value)
         longPressTimer.value = null
       }
-      if (livePhotoVideoBlobUrl.value) {
-        URL.revokeObjectURL(livePhotoVideoBlobUrl.value)
-        livePhotoVideoBlobUrl.value = null
-      }
-      livePhotoVideoBlob.value = null
+      preparedLivePhotoUrl.value = null
 
       if (zoomLevelTimer.value) {
         clearTimeout(zoomLevelTimer.value)
@@ -274,22 +268,17 @@ const processCurrentLivePhoto = async () => {
   if (!photo || !photo.isLivePhoto || !photo.livePhotoVideoUrl) return
 
   try {
-    const blob = await convertMovToMp4(photo.livePhotoVideoUrl, photo.id)
-    if (blob) {
-      livePhotoVideoBlob.value = blob
-      // Clean up previous blob URL
-      if (livePhotoVideoBlobUrl.value) {
-        URL.revokeObjectURL(livePhotoVideoBlobUrl.value)
-      }
-      livePhotoVideoBlobUrl.value = URL.createObjectURL(blob)
-    }
+    preparedLivePhotoUrl.value = await prepareLivePhotoVideo(
+      photo.livePhotoVideoUrl,
+      photo.id,
+    )
   } catch (error) {
     console.error('Failed to process LivePhoto in viewer:', error)
   }
 }
 
 const playLivePhotoVideo = () => {
-  if (!livePhotoVideoRef.value || !livePhotoVideoBlobUrl.value) return
+  if (!livePhotoVideoRef.value || !preparedLivePhotoUrl.value) return
 
   livePhotoVideoRef.value.currentTime = 0
   isLivePhotoPlaying.value = true
@@ -324,7 +313,7 @@ const handleLivePhotoMouseEnter = () => {
   if (
     !isMobile.value &&
     currentPhoto.value?.isLivePhoto &&
-    livePhotoVideoBlobUrl.value
+    preparedLivePhotoUrl.value
   ) {
     isLivePhotoHovering.value = true
     playLivePhotoVideo()
@@ -342,7 +331,7 @@ const handleLivePhotoTouchStart = (event: TouchEvent) => {
   if (
     isMobile.value &&
     currentPhoto.value?.isLivePhoto &&
-    livePhotoVideoBlobUrl.value
+    preparedLivePhotoUrl.value
   ) {
     touchCount.value = event.touches.length
 
@@ -530,11 +519,7 @@ onUnmounted(() => {
     longPressTimer.value = null
   }
 
-  // Clean up LivePhoto blob URL
-  if (livePhotoVideoBlobUrl.value) {
-    URL.revokeObjectURL(livePhotoVideoBlobUrl.value)
-    livePhotoVideoBlobUrl.value = null
-  }
+  preparedLivePhotoUrl.value = null
 })
 
 // Swiper modules
@@ -784,14 +769,14 @@ const swiperModules = [Navigation, Keyboard, Virtual]
                       v-if="
                         photo.isLivePhoto &&
                         index === currentIndex &&
-                        livePhotoVideoBlobUrl
+                        preparedLivePhotoUrl
                       "
                       :ref="
                         (el) => {
                           if (index === currentIndex) livePhotoVideoRef = el
                         }
                       "
-                      :src="livePhotoVideoBlobUrl"
+                      :src="preparedLivePhotoUrl"
                       class="absolute inset-0 w-full h-full object-contain pointer-events-none select-none touch-none"
                       :muted="isLivePhotoMuted"
                       playsinline

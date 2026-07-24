@@ -3,13 +3,18 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
 const photosApi = await readFile('server/api/photos/index.get.ts', 'utf8')
+const photoResponse = await readFile('server/utils/photoResponse.ts', 'utf8')
 const fileRoute = await readFile('server/routes/file/[...key].get.ts', 'utf8')
 const storageRoute = await readFile('server/routes/storage/[...path].ts', 'utf8')
 const accessGuard = await readFile('server/utils/photoFileAccess.ts', 'utf8')
 
 test('photo list only returns URLs protected by the file proxy', () => {
-  assert.match(photosApi, /toFileProxyUrl\(key\)/)
+  assert.match(photosApi, /pageRows\.map\(toPhotoListItem\)/)
+  assert.match(photoResponse, /toFileProxyUrl\(originalKey\)/)
+  assert.match(photoResponse, /toFileProxyUrl\(photo\.thumbnailKey\)/)
+  assert.match(photoResponse, /toFileProxyUrl\(photo\.livePhotoVideoKey\)/)
   assert.doesNotMatch(photosApi, /getPublicUrl/)
+  assert.doesNotMatch(photoResponse, /getPublicUrl/)
 })
 
 test('file and legacy local storage routes share hidden album access checks', () => {

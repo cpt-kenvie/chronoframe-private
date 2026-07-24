@@ -6,6 +6,18 @@ export interface StorageObject {
   size?: number
   etag?: string
   lastModified?: Date
+  rawUrl?: string
+}
+
+export interface StorageByteRange {
+  start: number
+  end: number
+}
+
+export interface StorageReadResult {
+  stream: Readable
+  size: number
+  contentLength: number
 }
 
 export interface UploadOptions {
@@ -32,6 +44,10 @@ export interface StorageProvider {
   ): Promise<StorageObject>
   delete(key: string): Promise<void>
   get(key: string): Promise<Buffer | null>
+  getStream(
+    key: string,
+    range?: StorageByteRange,
+  ): Promise<StorageReadResult | null>
   getPublicUrl(key: string): string
   getSignedUrl?(
     key: string,

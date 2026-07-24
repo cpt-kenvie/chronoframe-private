@@ -99,7 +99,8 @@ provide(
       <NuxtPage />
     </NuxtLayout>
     <ClientOnly>
-      <PhotoViewer
+      <LazyPhotoViewer
+        v-if="isViewerOpen"
         :photos="displayPhotos"
         :current-index="currentPhotoIndex"
         :is-open="isViewerOpen"

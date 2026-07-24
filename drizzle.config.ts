@@ -2,8 +2,9 @@ import { defineConfig } from 'drizzle-kit'
 import { mkdirSync } from 'node:fs'
 import { dirname } from 'node:path'
 
-const dbUrl = process.env.DATABASE_URL ?? 'file:./data/app.sqlite3'
-const dbFilePath = dbUrl.replace(/^file:/, '')
+// 默认数据库地址必须与应用运行时和迁移脚本保持一致。
+const DATABASE_URL = process.env.DATABASE_URL ?? 'file:./data/app.sqlite3'
+const dbFilePath = DATABASE_URL.replace(/^file:/, '')
 const dbDir = dirname(dbFilePath)
 
 mkdirSync(dbDir, { recursive: true })
@@ -13,6 +14,6 @@ export default defineConfig({
   schema: './server/database/schema.ts',
   out: './server/database/migrations',
   dbCredentials: {
-    url: dbUrl,
+    url: DATABASE_URL,
   },
 })

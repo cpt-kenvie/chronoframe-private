@@ -1,7 +1,12 @@
 import crypto from 'node:crypto'
-import { PassThrough } from 'node:stream'
-import type { Readable } from 'node:stream'
-import type { StorageObject, StorageProvider, UploadOptions } from './interfaces'
+import { PassThrough, Readable } from 'node:stream'
+import type {
+  StorageByteRange,
+  StorageObject,
+  StorageProvider,
+  StorageReadResult,
+  UploadOptions,
+} from './interfaces'
 import { settingsManager } from '~~/server/services/settings/settingsManager'
 import {
   decryptBuffer,
@@ -12,6 +17,11 @@ import {
   encryptBuffer,
   isEncryptedPayload,
 } from './encryption'
+
+const ENCRYPTION_OVERHEAD_BYTES =
+  ENCRYPTION_MAGIC.length + ENCRYPTION_IV_LENGTH + ENCRYPTION_TAG_LENGTH
+// 缓存近期对象的加密状态，避免每个视频分段请求都额外读取文件头。
+const MAX_ENCRYPTION_STATUS_CACHE_ENTRIES = 1000
 
 const getEncryptionSettings = async (): Promise<{
   encryptOnWrite: boolean
@@ -66,6 +76,10 @@ const createEncryptedStream = (
 
 export class EncryptedStorageProvider implements StorageProvider {
   config?: StorageProvider['config']
+  private encryptionStatusCache = new Map<
+    string,
+    { encrypted: boolean; size: number }
+  >()
   getSignedUrl?: (
     key: string,
     expiresIn?: number,
@@ -77,12 +91,50 @@ export class EncryptedStorageProvider implements StorageProvider {
     this.getSignedUrl = inner.getSignedUrl?.bind(inner)
   }
 
+  private async isEncryptedObject(
+    key: string,
+    knownSize?: number,
+  ): Promise<boolean> {
+    const cached = this.encryptionStatusCache.get(key)
+    if (cached && (knownSize === undefined || cached.size === knownSize)) {
+      this.encryptionStatusCache.delete(key)
+      this.encryptionStatusCache.set(key, cached)
+      return cached.encrypted
+    }
+
+    const size = knownSize ?? (await this.inner.getFileMeta(key))?.size
+    if (size === undefined || size < ENCRYPTION_OVERHEAD_BYTES) return false
+
+    const prefixResult = await this.inner.getStream(key, {
+      start: 0,
+      end: ENCRYPTION_OVERHEAD_BYTES - 1,
+    })
+    if (!prefixResult) return false
+
+    const chunks: Buffer[] = []
+    for await (const chunk of prefixResult.stream) {
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk))
+    }
+    const encrypted = isEncryptedPayload(Buffer.concat(chunks))
+    this.encryptionStatusCache.set(key, { encrypted, size })
+    if (
+      this.encryptionStatusCache.size > MAX_ENCRYPTION_STATUS_CACHE_ENTRIES
+    ) {
+      const oldestKey = this.encryptionStatusCache.keys().next().value
+      if (oldestKey !== undefined) {
+        this.encryptionStatusCache.delete(oldestKey)
+      }
+    }
+    return encrypted
+  }
+
   async create(
     key: string,
     fileBuffer: Buffer,
     contentType?: string,
     skipEncryption?: boolean,
   ): Promise<StorageObject> {
+    this.encryptionStatusCache.delete(key)
     const { encryptOnWrite, key: encryptionKey } = await getEncryptionSettings()
     if (!encryptOnWrite || skipEncryption) {
       return await this.inner.create(key, fileBuffer, contentType)
@@ -105,6 +157,7 @@ export class EncryptedStorageProvider implements StorageProvider {
     contentType?: string,
     skipEncryption?: boolean,
   ): Promise<StorageObject> {
+    this.encryptionStatusCache.delete(key)
     const { encryptOnWrite, key: encryptionKey } = await getEncryptionSettings()
 
     if (!encryptOnWrite || skipEncryption) {
@@ -168,6 +221,7 @@ export class EncryptedStorageProvider implements StorageProvider {
   }
 
   async encryptFile(key: string): Promise<void> {
+    this.encryptionStatusCache.delete(key)
     const { key: encryptionKey } = await getEncryptionSettings()
     if (!encryptionKey) {
       throw new Error('Encryption key is not set')
@@ -208,6 +262,7 @@ export class EncryptedStorageProvider implements StorageProvider {
   }
 
   async delete(key: string): Promise<void> {
+    this.encryptionStatusCache.delete(key)
     return await this.inner.delete(key)
   }
 
@@ -223,12 +278,42 @@ export class EncryptedStorageProvider implements StorageProvider {
     return decryptBuffer(payload, encryptionKey)
   }
 
+  async getStream(
+    key: string,
+    range?: StorageByteRange,
+  ): Promise<StorageReadResult | null> {
+    if (!(await this.isEncryptedObject(key))) {
+      return await this.inner.getStream(key, range)
+    }
+
+    // AES-GCM 必须校验文件末尾的认证标签，加密对象无法直接做随机范围解密。
+    const payload = await this.get(key)
+    if (!payload) return null
+
+    const start = range?.start ?? 0
+    const end = range?.end ?? payload.length - 1
+    const data = payload.subarray(start, end + 1)
+    return {
+      stream: Readable.from([data]),
+      size: payload.length,
+      contentLength: data.length,
+    }
+  }
+
   getPublicUrl(key: string): string {
     return this.inner.getPublicUrl(key)
   }
 
   async getFileMeta(key: string): Promise<StorageObject | null> {
-    return await this.inner.getFileMeta(key)
+    const metadata = await this.inner.getFileMeta(key)
+    if (!metadata?.size || !(await this.isEncryptedObject(key, metadata.size))) {
+      return metadata
+    }
+
+    return {
+      ...metadata,
+      size: Math.max(0, metadata.size - ENCRYPTION_OVERHEAD_BYTES),
+    }
   }
 
   async listAll(): Promise<StorageObject[]> {

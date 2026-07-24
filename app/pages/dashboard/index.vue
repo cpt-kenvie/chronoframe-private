@@ -2,6 +2,9 @@
 import '@/assets/css/heatmap.css'
 import type { CalendarItem } from '~/components/ui/CalendarHeatmap/Heatmap'
 
+// 仪表盘仅在浏览器挂载后按此间隔刷新，避免 SSR 请求遗留定时器。
+const DASHBOARD_REFRESH_INTERVAL_MS = 5000
+
 definePageMeta({
   layout: 'dashboard',
 })
@@ -43,10 +46,14 @@ const refreshData = async () => {
   }
 }
 
-const refreshInterval = setInterval(refreshData, 5000)
+let refreshInterval: ReturnType<typeof setInterval> | null = null
+
+onMounted(() => {
+  refreshInterval = setInterval(refreshData, DASHBOARD_REFRESH_INTERVAL_MS)
+})
 
 onBeforeUnmount(() => {
-  clearInterval(refreshInterval)
+  if (refreshInterval) clearInterval(refreshInterval)
 })
 
 const systemStatus = computed(() => {

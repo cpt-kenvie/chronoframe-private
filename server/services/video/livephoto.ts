@@ -1,7 +1,169 @@
 import path from 'path'
-import { eq } from 'drizzle-orm'
+import os from 'node:os'
+import { randomUUID } from 'node:crypto'
+import { createReadStream, createWriteStream, promises as fs } from 'node:fs'
+import { execFile } from 'node:child_process'
+import { pipeline } from 'node:stream/promises'
+import { promisify } from 'node:util'
+import { and, eq } from 'drizzle-orm'
 import { getStorageManager } from '~~/server/plugins/3.storage'
 import { toFileProxyUrl } from '~~/server/utils/publicFile'
+
+// Live Photo 视频的体积上限，用于避免把普通长视频误判为配对视频。
+const MAX_LIVE_PHOTO_VIDEO_SIZE_BYTES = 12 * 1024 * 1024
+// 单个 Live Photo 转码的最长执行时间，防止异常媒体长期占用工作进程。
+const LIVE_PHOTO_TRANSCODE_TIMEOUT_MS = 2 * 60 * 1000
+// FFmpeg 错误输出上限，避免异常文件产生过量日志占用内存。
+const FFMPEG_MAX_OUTPUT_BYTES = 1024 * 1024
+
+const execFileAsync = promisify(execFile)
+
+interface LivePhotoPlaybackVideo {
+  videoKey: string
+  videoSize: number
+}
+
+const transcodeJobs = new Map<
+  string,
+  Promise<LivePhotoPlaybackVideo | null>
+>()
+
+const transcodeLivePhotoVideo = async (
+  videoKey: string,
+): Promise<LivePhotoPlaybackVideo | null> => {
+  const extension = path.extname(videoKey).toLowerCase()
+  const storageProvider = getStorageManager().getProvider()
+
+  if (extension === '.mp4') {
+    const metadata = await storageProvider.getFileMeta(videoKey)
+    return metadata?.size === undefined
+      ? null
+      : { videoKey, videoSize: metadata.size }
+  }
+  if (extension !== '.mov') return null
+
+  const mp4Key = `${videoKey.slice(0, -extension.length)}.livephoto.mp4`
+  const existingMp4 = await storageProvider.getFileMeta(mp4Key)
+  if (existingMp4?.size !== undefined) {
+    return { videoKey: mp4Key, videoSize: existingMp4.size }
+  }
+
+  const source = await storageProvider.getStream(videoKey)
+  if (!source) return null
+
+  const tempBaseName = `chronoframe-live-photo-${randomUUID()}`
+  const inputPath = path.join(os.tmpdir(), `${tempBaseName}.mov`)
+  const outputPath = path.join(os.tmpdir(), `${tempBaseName}.mp4`)
+
+  try {
+    await pipeline(source.stream, createWriteStream(inputPath))
+    await execFileAsync(
+      'ffmpeg',
+      [
+        '-loglevel',
+        'error',
+        '-y',
+        '-i',
+        inputPath,
+        '-map',
+        '0:v:0',
+        '-map',
+        '0:a:0?',
+        '-c:v',
+        'libx264',
+        '-preset',
+        'fast',
+        '-crf',
+        '23',
+        '-pix_fmt',
+        'yuv420p',
+        '-vf',
+        'scale=trunc(iw/2)*2:trunc(ih/2)*2',
+        '-c:a',
+        'aac',
+        '-b:a',
+        '128k',
+        '-movflags',
+        '+faststart',
+        outputPath,
+      ],
+      {
+        timeout: LIVE_PHOTO_TRANSCODE_TIMEOUT_MS,
+        maxBuffer: FFMPEG_MAX_OUTPUT_BYTES,
+      },
+    )
+
+    const outputStat = await fs.stat(outputPath)
+    if (storageProvider.createFromStream) {
+      await storageProvider.createFromStream(
+        mp4Key,
+        createReadStream(outputPath),
+        outputStat.size,
+        'video/mp4',
+      )
+    } else {
+      await storageProvider.create(
+        mp4Key,
+        await fs.readFile(outputPath),
+        'video/mp4',
+      )
+    }
+
+    logger.chrono.success(`LivePhoto 视频已转码为 MP4: ${mp4Key}`)
+    return { videoKey: mp4Key, videoSize: outputStat.size }
+  } catch (error) {
+    logger.chrono.error(`LivePhoto 视频转码失败: ${videoKey}`, error)
+    return null
+  } finally {
+    await Promise.all([
+      fs.unlink(inputPath).catch(() => undefined),
+      fs.unlink(outputPath).catch(() => undefined),
+    ])
+  }
+}
+
+/**
+ * 为浏览器准备真正的 MP4 播放文件，并合并同一源文件的并发转码请求。
+ */
+export const ensureLivePhotoPlaybackVideo = async (
+  videoKey: string,
+): Promise<LivePhotoPlaybackVideo | null> => {
+  const runningJob = transcodeJobs.get(videoKey)
+  if (runningJob) return await runningJob
+
+  const job = transcodeLivePhotoVideo(videoKey)
+  transcodeJobs.set(videoKey, job)
+  try {
+    return await job
+  } finally {
+    if (transcodeJobs.get(videoKey) === job) {
+      transcodeJobs.delete(videoKey)
+    }
+  }
+}
+
+/**
+ * 仅对已入库的 Live Photo MOV 做按需转码，普通 MOV 文件保持原样。
+ */
+export const resolveLivePhotoPlaybackKey = async (
+  videoKey: string,
+): Promise<string> => {
+  if (path.extname(videoKey).toLowerCase() !== '.mov') return videoKey
+
+  const livePhoto = await useDB()
+    .select({ id: tables.photos.id })
+    .from(tables.photos)
+    .where(
+      and(
+        eq(tables.photos.isLivePhoto, 1),
+        eq(tables.photos.livePhotoVideoKey, videoKey),
+      ),
+    )
+    .get()
+  if (!livePhoto) return videoKey
+
+  return (await ensureLivePhotoPlaybackVideo(videoKey))?.videoKey ?? videoKey
+}
 
 /**
  * 处理 LivePhoto MOV 文件，匹配相同文件名的照片并更新 LivePhoto 信息
@@ -51,8 +213,11 @@ export const processLivePhotoVideo = async (
       return false
     }
     
+    const playbackVideo = await ensureLivePhotoPlaybackVideo(videoKey)
+    if (!playbackVideo) return false
+
     // 媒体 URL 统一通过权限代理生成，避免隐藏相册文件泄漏。
-    const videoUrl = toFileProxyUrl(videoKey)
+    const videoUrl = toFileProxyUrl(playbackVideo.videoKey)
     
     // 更新照片记录，设置 LivePhoto 信息
     await db
@@ -60,11 +225,11 @@ export const processLivePhotoVideo = async (
       .set({
         isLivePhoto: 1,
         livePhotoVideoUrl: videoUrl,
-        livePhotoVideoKey: videoKey,
+        livePhotoVideoKey: playbackVideo.videoKey,
       })
       .where(eq(tables.photos.id, matchedPhoto.id))
     
-    logger.chrono.success(`Successfully processed LivePhoto: ${matchedPhoto.id}, video: ${videoKey}`)
+    logger.chrono.success(`Successfully processed LivePhoto: ${matchedPhoto.id}, video: ${playbackVideo.videoKey}`)
     return true
     
   } catch (error) {
@@ -90,6 +255,8 @@ export const findLivePhotoVideoForImage = async (
     
     // 查找可能匹配的视频文件名模式
     const possibleVideoKeys = [
+      path.join(imageDir, `${imageBaseName}.MP4`).replace(/\\/g, '/'),
+      path.join(imageDir, `${imageBaseName}.mp4`).replace(/\\/g, '/'),
       path.join(imageDir, `${imageBaseName}.MOV`).replace(/\\/g, '/'),
       path.join(imageDir, `${imageBaseName}.mov`).replace(/\\/g, '/'),
     ]
@@ -97,15 +264,17 @@ export const findLivePhotoVideoForImage = async (
     // 检查存储中是否存在对应的视频文件
     for (const videoKey of possibleVideoKeys) {
       try {
-        const videoBuffer = await storageProvider.get(videoKey)
-        if (videoBuffer) {
-          const videoSize = videoBuffer.length
-          
+        const metadata = await storageProvider.getFileMeta(videoKey)
+        if (metadata?.size !== undefined) {
+          const videoSize = metadata.size
+
           // 检查是否符合 LivePhoto 视频的特征
           const fileName = path.basename(videoKey)
           if (isLivePhotoVideo(fileName, videoSize)) {
-            logger.chrono.info(`Found matching LivePhoto video: ${videoKey}`)
-            return { videoKey, videoSize }
+            const playbackVideo = await ensureLivePhotoPlaybackVideo(videoKey)
+            if (!playbackVideo) continue
+            logger.chrono.info(`Found matching LivePhoto video: ${playbackVideo.videoKey}`)
+            return playbackVideo
           } else {
             logger.chrono.warn(`Video file found but doesn't match LivePhoto criteria: ${videoKey} (size: ${videoSize})`)
           }
@@ -140,11 +309,10 @@ export const isVideoFile = (fileName: string): boolean => {
 export const isLivePhotoVideo = (fileName: string, fileSize: number): boolean => {
   const extName = path.extname(fileName).toLowerCase()
   
-  // 检查是否为 MOV 格式
-  if (extName !== '.mov') {
+  // 已完成转码的 MP4 仍属于 Live Photo 配对视频。
+  if (extName !== '.mov' && extName !== '.mp4') {
     return false
   }
   
-  const maxLivePhotoSize = 12 * 1024 * 1024 // 12MB
-  return fileSize <= maxLivePhotoSize
+  return fileSize <= MAX_LIVE_PHOTO_VIDEO_SIZE_BYTES
 }

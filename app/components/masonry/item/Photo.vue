@@ -27,9 +27,8 @@ const containerWidth = ref(0)
 const isHovering = ref(false)
 const isVideoPlaying = ref(false)
 const isVideoLoaded = ref(false)
-const videoBlob = ref<Blob | null>(null)
-const videoBlobUrl = ref<string | null>(null)
-const { convertMovToMp4, getProcessingState } = useLivePhotoProcessor()
+const preparedLivePhotoUrl = ref<string | null>(null)
+const { prepareLivePhotoVideo, getProcessingState } = useLivePhotoProcessor()
 
 const normalVideoRef = useDomRef()
 const isNormalVideoPlaying = ref(false)
@@ -122,7 +121,7 @@ const handleMouseEnter = async () => {
   if (!props.photo.isLivePhoto || !props.photo.livePhotoVideoUrl) return
 
   // 如果视频已准备好，立即播放
-  if (videoBlob.value && videoBlobUrl.value && isVideoLoaded.value) {
+  if (preparedLivePhotoUrl.value && isVideoLoaded.value) {
     playLivePhotoVideo()
   } else if (!processingState.value?.isProcessing) {
     // 如果视频还未处理，立即开始处理
@@ -156,7 +155,7 @@ const handleMouseLeave = () => {
 }
 
 const playLivePhotoVideo = () => {
-  if (!videoRef.value || !videoBlobUrl.value) return
+  if (!videoRef.value || !preparedLivePhotoUrl.value) return
 
   // 预加载视频以确保流畅播放
   if (videoRef.value.readyState < 2) {
@@ -316,7 +315,7 @@ const handleTouchStart = (event: TouchEvent) => {
     return
   }
 
-  if (!props.photo.isLivePhoto || !videoBlobUrl.value) return
+  if (!props.photo.isLivePhoto || !preparedLivePhotoUrl.value) return
 
   touchCount.value = event.touches.length
 
@@ -439,19 +438,13 @@ const processLivePhotoWhenVisible = async () => {
     return
 
   try {
-    // 使用优化的转换函数，支持重试和缓存
-    const blob = await convertMovToMp4(
+    const videoUrl = await prepareLivePhotoVideo(
       props.photo.livePhotoVideoUrl,
       props.photo.id,
     )
 
-    if (blob) {
-      videoBlob.value = blob
-      // Clean up previous blob URL
-      if (videoBlobUrl.value) {
-        URL.revokeObjectURL(videoBlobUrl.value)
-      }
-      videoBlobUrl.value = URL.createObjectURL(blob)
+    if (videoUrl) {
+      preparedLivePhotoUrl.value = videoUrl
       isVideoLoaded.value = true
 
       // 预热视频元素以提高播放性能
@@ -605,10 +598,6 @@ onUnmounted(() => {
     longPressTimer.value = null
   }
 
-  // Clean up video blob URL
-  if (videoBlobUrl.value) {
-    URL.revokeObjectURL(videoBlobUrl.value)
-  }
 })
 </script>
 
@@ -706,9 +695,9 @@ onUnmounted(() => {
 
         <!-- LivePhoto video with enhanced motion transition -->
         <motion.video
-          v-if="photo.isLivePhoto && videoBlobUrl"
+          v-if="photo.isLivePhoto && preparedLivePhotoUrl"
           ref="videoRef"
-          :src="videoBlobUrl"
+          :src="preparedLivePhotoUrl"
           class="absolute inset-0 w-full h-full object-cover"
           :class="{ 'select-none pointer-events-none': isVideoPlaying }"
           muted

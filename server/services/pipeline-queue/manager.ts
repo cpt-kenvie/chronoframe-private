@@ -18,7 +18,10 @@ import {
   extractLocationFromGPS,
   parseGPSCoordinates,
 } from '../location/geocoding'
-import { findLivePhotoVideoForImage } from '../video/livephoto'
+import {
+  ensureLivePhotoPlaybackVideo,
+  findLivePhotoVideoForImage,
+} from '../video/livephoto'
 import { processMotionPhotoFromXmp } from '../video/motion-photo'
 import { processVideoMetadata } from '../video/processor'
 import { getStorageManager } from '~~/server/plugins/3.storage'
@@ -734,13 +737,17 @@ export class QueueManager {
             return
           }
 
-          const livePhotoVideoUrl = toUrl(videoKey)
+          const playbackVideo = await ensureLivePhotoPlaybackVideo(videoKey)
+          if (!playbackVideo) {
+            throw new Error(`LivePhoto 视频 ${videoKey} 转码失败`)
+          }
+          const livePhotoVideoUrl = toUrl(playbackVideo.videoKey)
           await db
             .update(tables.photos)
             .set({
               isLivePhoto: 1,
               livePhotoVideoUrl,
-              livePhotoVideoKey: videoKey,
+              livePhotoVideoKey: playbackVideo.videoKey,
             })
             .where(eq(tables.photos.id, matchedPhoto.id))
 

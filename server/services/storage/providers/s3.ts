@@ -1,8 +1,9 @@
-import type { Readable } from 'node:stream'
+import { Readable } from 'node:stream'
 import type { _Object, S3ClientConfig } from '@aws-sdk/client-s3'
 import {
   DeleteObjectCommand,
   GetObjectCommand,
+  HeadObjectCommand,
   ListObjectsCommand,
   PutObjectCommand,
   S3Client,
@@ -10,7 +11,9 @@ import {
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import type {
   StorageObject,
+  StorageByteRange,
   StorageProvider,
+  StorageReadResult,
   UploadOptions,
 } from '../interfaces'
 
@@ -203,6 +206,39 @@ export class S3StorageProvider implements StorageProvider {
     }
   }
 
+  async getStream(
+    key: string,
+    range?: StorageByteRange,
+  ): Promise<StorageReadResult | null> {
+    try {
+      const resp = await this.client.send(
+        new GetObjectCommand({
+          Bucket: this.config.bucket,
+          Key: key,
+          Range: range ? `bytes=${range.start}-${range.end}` : undefined,
+        }),
+      )
+
+      if (!resp.Body) return null
+
+      const stream =
+        resp.Body instanceof Readable
+          ? resp.Body
+          : Readable.from(resp.Body as AsyncIterable<Uint8Array>)
+      const contentLength = resp.ContentLength ??
+        (range ? range.end - range.start + 1 : 0)
+      const totalSizeMatch = /\/(\d+)$/.exec(resp.ContentRange ?? '')
+      const size = totalSizeMatch?.[1]
+        ? Number.parseInt(totalSizeMatch[1], 10)
+        : contentLength
+
+      return { stream, size, contentLength }
+    } catch (error) {
+      if (getHttpStatusCode(error) === 404) return null
+      throw error
+    }
+  }
+
   getPublicUrl(key: string): string {
     const { cdnUrl, bucket, region, endpoint } = this.config
 
@@ -254,7 +290,7 @@ export class S3StorageProvider implements StorageProvider {
 
   async getFileMeta(key: string): Promise<StorageObject | null> {
     try {
-      const cmd = new GetObjectCommand({
+      const cmd = new HeadObjectCommand({
         Bucket: this.config.bucket,
         Key: key,
       })

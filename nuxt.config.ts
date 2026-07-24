@@ -21,7 +21,6 @@ export default defineNuxtConfig({
     '@nuxt/fonts',
     '@nuxt/icon',
     '@nuxt/image',
-    '@nuxt/test-utils',
     '@pinia/nuxt',
     'motion-v/nuxt',
     'nuxt-auth-utils',
@@ -150,9 +149,31 @@ export default defineNuxtConfig({
 
   nitro: {
     preset: 'node_server',
+    externals: {
+      // 内联存在多主版本的依赖树，确保各调用方保留与自身兼容的实现。
+      inline: [
+        '@aws-crypto/',
+        '@aws-sdk/client-s3',
+        '@aws-sdk/s3-request-presigner',
+        '@smithy/is-array-buffer',
+        '@smithy/util-buffer-from',
+        '@smithy/util-utf8',
+        '@vue/devtools-api',
+        'devalue',
+        'jose',
+        'nuxt-auth-utils',
+        'openid-client',
+        'perfect-debounce',
+        'pinia',
+        'vue-i18n',
+        'vue-router',
+      ],
+    },
     experimental: {
       websocket: true,
       tasks: true,
+      // 使用稳定的外部依赖解析器，避免生产构建遍历过大的依赖图。
+      legacyExternals: true,
     },
   },
 

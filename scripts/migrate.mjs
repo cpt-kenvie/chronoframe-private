@@ -9,14 +9,18 @@ import { mkdirSync } from 'node:fs'
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
 
+// 默认数据库地址必须与应用运行时和 Drizzle 配置保持一致。
+const DEFAULT_DATABASE_URL = 'file:./data/app.sqlite3'
+
+const resolveDatabaseFilePath = (databaseUrl) =>
+  databaseUrl.replace(/^file:/, '')
+
 console.log('Running database migrations...')
 
 try {
-  const dataDir = join(__dirname, '../data')
-  mkdirSync(dataDir, { recursive: true })
-
-  const dbPath =
-    process.env.DATABASE_URL || join(dataDir, 'app.sqlite3') || '/app/data/app.sqlite3'
+  const databaseUrl = process.env.DATABASE_URL ?? DEFAULT_DATABASE_URL
+  const dbPath = resolveDatabaseFilePath(databaseUrl)
+  mkdirSync(dirname(dbPath), { recursive: true })
 
   const sqlite = new Database(dbPath)
   const db = drizzle(sqlite)
