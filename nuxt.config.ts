@@ -3,7 +3,8 @@ import tailwindcss from '@tailwindcss/vite'
 import type { AnalyticsConfig } from './shared/types/config'
 import { installDevFetchErrorHint } from './shared/utils/dev-fetch-error-hint'
 
-const ENABLE_DEV_FETCH_ABORT_HINT = process.env.NODE_ENV !== 'production'
+const IS_PRODUCTION = process.env.NODE_ENV === 'production'
+const ENABLE_DEV_FETCH_ABORT_HINT = !IS_PRODUCTION
 
 if (ENABLE_DEV_FETCH_ABORT_HINT) {
   installDevFetchErrorHint()
@@ -155,9 +156,14 @@ export default defineNuxtConfig({
         '@aws-crypto/',
         '@aws-sdk/client-s3',
         '@aws-sdk/s3-request-presigner',
-        '@smithy/is-array-buffer',
-        '@smithy/util-buffer-from',
-        '@smithy/util-utf8',
+        // 开发态由 Nitro 外部化 Smithy CJS，避免 Rollup 转换 Node 内置模块失败。
+        ...(IS_PRODUCTION
+          ? [
+              '@smithy/is-array-buffer',
+              '@smithy/util-buffer-from',
+              '@smithy/util-utf8',
+            ]
+          : []),
         '@vue/devtools-api',
         'devalue',
         'jose',
@@ -172,8 +178,8 @@ export default defineNuxtConfig({
     experimental: {
       websocket: true,
       tasks: true,
-      // 使用稳定的外部依赖解析器，避免生产构建遍历过大的依赖图。
-      legacyExternals: true,
+      // 生产构建使用旧解析器控制内存，开发态保留默认解析以兼容 Windows 路径。
+      legacyExternals: IS_PRODUCTION,
     },
   },
 
